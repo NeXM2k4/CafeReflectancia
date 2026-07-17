@@ -1,0 +1,8 @@
+.streamlit/secrets.toml
+.state/
+__pycache__/
+*.pyc
+.venv/
+roya/
+ESTADO_PROYECTO.md
+.claude/
