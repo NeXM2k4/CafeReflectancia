@@ -4,5 +4,3 @@ __pycache__/
 *.pyc
 .venv/
 roya/
-ESTADO_PROYECTO.md
-.claude/
