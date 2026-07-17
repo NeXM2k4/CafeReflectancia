@@ -95,6 +95,39 @@ def calcular_indices(df: pd.DataFrame) -> dict:
     }
 
 
+def severity_score(values: dict, baseline: dict) -> dict | None:
+    """Normaliza los indices de un archivo a un score de severidad de roya, 0 (sana) a 1 (enferma).
+
+    `values`: salida de `calcular_indices()` para ese archivo.
+    `baseline`: dict {indice: {"sana": ancla_hoja_tierna, "enferma": ancla_hoja_con_roya}} de
+    la especie de ese archivo (ver `_severity_baselines()` en app.py). La hoja Tierna se usa
+    como ancla sana porque la roya todavia no tuvo tiempo de manifestarse en tejido nuevo.
+
+    Cada indice se normaliza por separado entre sus dos anclas (con clip a 0-1) y el score
+    final es la mediana de esos valores — mas robusto ante un indice atipico que el promedio,
+    y permite combinar los 7 indices en una sola lectura sin que uno solo domine el resultado.
+    """
+    normalizados = {}
+    for idx_name, value in values.items():
+        ref = baseline.get(idx_name)
+        if ref is None or value is None or np.isnan(value):
+            continue
+        sana, enferma = ref["sana"], ref["enferma"]
+        if sana is None or enferma is None or np.isnan(sana) or np.isnan(enferma) or sana == enferma:
+            continue
+        normalizados[idx_name] = float(np.clip((value - sana) / (enferma - sana), 0.0, 1.0))
+
+    if not normalizados:
+        return None
+
+    scores = list(normalizados.values())
+    return {
+        "score": float(np.median(scores)),
+        "n_indices": len(scores),
+        "detalle": normalizados,
+    }
+
+
 def average_group(dfs: list[pd.DataFrame], n_points: int = 1000) -> pd.DataFrame | None:
     """Interpola espectros suavizados a una grilla comun y calcula media y SD."""
     if not dfs:

@@ -1,11 +1,67 @@
 """Analisis de reflectancia foliar en cafe - deteccion de roya. Pagina de inicio."""
 
+import pandas as pd
 import streamlit as st
 
-from src.notifier import send_telegram_message
-from src.parser import get_dataset
+from src.config import INDEX_DEFINITIONS
+from src.notifier import format_severity_detail, format_severity_summary, send_telegram_message
+from src.parser import get_dataset, load_spectrum
+from src.processing import calcular_indices, prepare_spectrum, severity_score
 from src.state import file_key, load_last_run, save_last_run
 from src.ui import inject_base_css, render_header, render_styled_pivot
+
+INDICES = list(INDEX_DEFINITIONS)
+
+
+@st.cache_data(show_spinner="Calculando referencias de severidad de roya...")
+def _severity_baselines(dataset: pd.DataFrame) -> dict:
+    """Ancla sana (hoja Tierna) y ancla enferma (hoja Con roya) por especie e indice.
+
+    La hoja Tierna se usa como ancla sana porque la roya todavia no tuvo tiempo de
+    manifestarse en tejido nuevo. Si una especie no tiene todavia muestras de roya
+    propias (hoy: Canefora y Cuscatleco), se usa como respaldo el promedio combinado
+    de las especies que si tienen (hoy: Bourbon y Pacamara).
+    """
+    recognized = dataset[dataset["name_recognized"]]
+    reference_rows = recognized[
+        (recognized["leaf_maturity"] == "Tierna") | (recognized["health_status"] == "Con roya")
+    ]
+
+    calculado = []
+    for row in reference_rows.itertuples():
+        try:
+            raw = load_spectrum(row.path)
+            idx = calcular_indices(prepare_spectrum(raw))
+        except ValueError:
+            continue
+        calculado.append({
+            "species": row.species,
+            "leaf_maturity": row.leaf_maturity,
+            "health_status": row.health_status,
+            **idx,
+        })
+
+    if not calculado:
+        return {}
+
+    calc_df = pd.DataFrame(calculado)
+    sana = calc_df[calc_df["leaf_maturity"] == "Tierna"].groupby("species")[INDICES].mean()
+    enferma_especie = calc_df[calc_df["health_status"] == "Con roya"].groupby("species")[INDICES].mean()
+    enferma_global = calc_df[calc_df["health_status"] == "Con roya"][INDICES].mean()
+
+    baselines = {}
+    for species in sana.index:
+        tiene_referencia_propia = species in enferma_especie.index
+        enferma = enferma_especie.loc[species] if tiene_referencia_propia else enferma_global
+        baselines[species] = {
+            "referencia_propia": tiene_referencia_propia,
+            "indices": {
+                idx_name: {"sana": sana.loc[species, idx_name], "enferma": enferma[idx_name]}
+                for idx_name in INDICES
+            },
+        }
+    return baselines
+
 
 st.set_page_config(page_title="Reflectancia Cafe - Roya", page_icon="🍃", layout="wide")
 inject_base_css()
@@ -58,11 +114,48 @@ if st.button("Verificar y analizar nueva data"):
         lineas = [f"- {especie}: {n} archivo(s)" for especie, n in resumen.items()]
         n_roya = int((new_df["health_status"] == "Con roya").sum())
         roya_linea = f"\n⚠️ {n_roya} archivo(s) con roya detectada." if n_roya else ""
+
+        # --- indicio de roya por indices espectrales (0% sana - 100% enferma) ---
+        baselines = _severity_baselines(df)
+        severidad_detalle = []
+        for row in new_df[new_df["name_recognized"]].itertuples():
+            especie_baseline = baselines.get(row.species)
+            if especie_baseline is None:
+                continue
+            try:
+                raw = load_spectrum(row.path)
+                idx = calcular_indices(prepare_spectrum(raw))
+            except ValueError:
+                continue
+            sev = severity_score(idx, especie_baseline["indices"])
+            if sev is None:
+                continue
+            severidad_detalle.append({
+                "species": row.species,
+                "hoja": f"{row.session}{row.session_num}",
+                "punto": row.point,
+                "score": sev["score"],
+                "n_indices": sev["n_indices"],
+                "referencia_propia": especie_baseline["referencia_propia"],
+            })
+
+        severidad_msg = ""
+        if severidad_detalle:
+            severidad_por_especie = (
+                pd.DataFrame(severidad_detalle).groupby("species")["score"].mean().to_dict()
+            )
+            severidad_msg = (
+                "\n\n🔎 *Indicio de roya segun indices espectrales (0% sana - 100% enferma)*\n"
+                "_Promedio por especie:_\n" + format_severity_summary(severidad_por_especie) +
+                "\n_Detalle por hoja:_\n" + format_severity_detail(severidad_detalle)
+            )
+
         mensaje = (
             "🍃 *Analisis de reflectancia actualizado*\n"
             f"Se detectaron {len(new_df)} archivo(s) nuevo(s) en data/:\n"
             + "\n".join(lineas)
             + roya_linea
+            + severidad_msg
         )
         ok, detalle = send_telegram_message(mensaje)
         save_last_run(current_keys)

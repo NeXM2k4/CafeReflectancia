@@ -15,6 +15,36 @@ import streamlit as st
 TELEGRAM_API = "https://api.telegram.org/bot{token}/sendMessage"
 
 
+def _severity_label(score: float) -> str:
+    """Etiqueta simple en lenguaje llano para que un trabajador de campo la entienda de un vistazo."""
+    if score < 0.33:
+        return "🟢 riesgo bajo"
+    if score < 0.66:
+        return "🟡 riesgo medio"
+    return "🔴 riesgo alto"
+
+
+def format_severity_summary(species_scores: dict) -> str:
+    """Promedio de indicio de roya por especie (0% sana - 100% enferma), para la alerta de Telegram."""
+    return "\n".join(
+        f"- {especie}: {score * 100:.0f}% {_severity_label(score)}"
+        for especie, score in species_scores.items()
+    )
+
+
+def format_severity_detail(file_scores: list) -> str:
+    """Detalle de indicio de roya por hoja/archivo nuevo, para la alerta de Telegram."""
+    lineas = []
+    for item in file_scores:
+        nota = "" if item["referencia_propia"] else " (referencia estimada: esta especie aun no tiene roya propia registrada)"
+        lineas.append(
+            f"- {item['species']} hoja {item['hoja']}, punto {item['punto']}: "
+            f"{item['score'] * 100:.0f}% {_severity_label(item['score'])} "
+            f"({item['n_indices']}/7 indices){nota}"
+        )
+    return "\n".join(lineas)
+
+
 def _get_credentials() -> tuple[str, str] | None:
     try:
         cfg = st.secrets["telegram"]

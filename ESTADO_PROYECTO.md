@@ -1,6 +1,6 @@
 # Estado del Proyecto — Reflectancia Foliar / Detección de Roya
 
-Última actualización: 2026-07-15
+Última actualización: 2026-07-17
 
 Este documento resume qué es el proyecto, cómo está construido, qué se hizo en la sesión de trabajo hasta ahora, y qué queda pendiente. El objetivo es que cualquiera (vos en una sesión futura, u otra persona) pueda retomarlo sin tener que releer todo el historial de conversación.
 
@@ -131,6 +131,7 @@ El módulo más importante. Responsable de:
 - `reflectance_at()`: reflectancia interpolada más cercana a una longitud de onda dada (tolerancia 5 nm).
 - `calcular_indices()`: calcula los 7 índices espectrales actuales (ver sección 7).
 - `average_group()`: interpola varios espectros a una grilla común y calcula media ± desviación estándar (para el gráfico de "Promedio ± SD" en la página de Espectros).
+- `severity_score()`: normaliza los 7 índices de un archivo a un score de severidad de roya 0 (sana) – 1 (enferma), usando anclas por especie calculadas en `app.py` (ver sección 9).
 
 ### `src/stats_utils.py`
 `compare_groups(groups, alpha=0.05)`: pipeline estadístico genérico y reusado en las 2 páginas de índices:
@@ -141,9 +142,9 @@ Devuelve un dict con resumen descriptivo, resultados de Shapiro, nombre del test
 
 ### `src/state.py` y `src/notifier.py` (feature de Telegram)
 - `state.py`: guarda en `.state/last_run.json` el set de archivos (`path|mtime_ns`) vistos en la última verificación manual. Permite calcular qué archivos son "nuevos" sin depender de ningún proceso corriendo en background.
-- `notifier.py`: `send_telegram_message()` lee `st.secrets["telegram"]["bot_token"]` y `chat_id"]`, hace un POST a la API de Telegram (`sendMessage`). Confirmado por el usuario que **ya funciona en producción**.
+- `notifier.py`: `send_telegram_message()` lee `st.secrets["telegram"]["bot_token"]` y `chat_id"]`, hace un POST a la API de Telegram (`sendMessage`). Confirmado por el usuario que **ya funciona en producción**. También tiene `format_severity_summary()` y `format_severity_detail()`, que arman en texto plano el score de severidad de roya por especie y por hoja (ver sección 9).
 
-Flujo completo (botón "Verificar y analizar nueva data" en Home): compara archivos actuales vs. última verificación → si hay nuevos, arma un resumen (cantidad por especie + cuántos son "Con roya") → lo manda por Telegram → guarda el nuevo estado como línea base.
+Flujo completo (botón "Verificar y analizar nueva data" en Home): compara archivos actuales vs. última verificación → si hay nuevos, arma un resumen (cantidad por especie + cuántos son "Con roya") + el score de severidad de roya por índices → lo manda por Telegram → guarda el nuevo estado como línea base.
 
 ## 7. Índices espectrales calculados
 
@@ -188,7 +189,27 @@ La página más rica. Filtros: especie → campaña → dimensión de agrupamien
 ### `pages/3_Comparacion_Especies.py`
 Compara los 7 índices entre las 4 especies (mínimo 2 especies seleccionadas). Mismos filtros de campaña y estado sanitario. Mismo fix de "Hoja" aplicado al agrupamiento. Tabla de promedios, boxplots por especie, estadística automática entre especies.
 
-## 9. Decisiones de diseño importantes (y el porqué)
+## 9. Score de severidad de roya en la alerta de Telegram
+
+Implementado a pedido de Samuel (vía WhatsApp, 2026-07-17): la alerta de Telegram ahora, además de contar archivos nuevos por especie, incluye un **score de 0% (sana) a 100% (enferma)** calculado a partir de los índices espectrales, para que un trabajador de campo sepa de un vistazo qué tan comprometida está una hoja.
+
+**Cómo se calibra (decidido con el usuario en esta sesión):**
+- Se usan los **7 índices espectrales** existentes (NDVI, PRI, PSRI, CARI, RCI, EDI, FSR) — no solo uno, para que el resultado sea más robusto.
+- Por cada índice y especie se calculan dos **anclas** a partir de los datos ya existentes en `data/`:
+  - **Ancla sana (0)** = promedio del índice en hojas **Tierna** (T). Razonamiento del usuario: la roya todavía no tuvo tiempo de manifestarse en tejido nuevo, así que la hoja tierna es la referencia sana más confiable disponible.
+  - **Ancla enferma (1)** = promedio del índice en hojas **Con roya** (R) de esa misma especie.
+  - **Bourbon y Pacamara** ya tienen su propia ancla enferma (son las únicas con muestras de roya reales). **Canefora y Cuscatleco** todavía no, así que usan como respaldo el promedio combinado de Bourbon + Pacamara — el código marca estos casos como `referencia_propia: False` y el mensaje de Telegram lo aclara con una nota ("referencia estimada").
+- Cada índice de un archivo nuevo se normaliza por separado entre sus dos anclas (clip a 0–1), y el score final del archivo es la **mediana** de los índices normalizados (más robusto ante un índice atípico que el promedio). El mensaje también reporta cuántos de los 7 índices se pudieron usar (`n/7`).
+- El mensaje de Telegram muestra el **promedio de severidad por especie** y el **detalle por hoja individual** (ambos, no solo uno — decidido con el usuario), con etiquetas en lenguaje simple (🟢 riesgo bajo / 🟡 riesgo medio / 🔴 riesgo alto) en vez de jerga técnica, pensado para que lo entienda un agricultor.
+
+**Dónde está el código:**
+- `src/processing.py` → `severity_score(values, baseline)`: función pura, normaliza y agrega.
+- `app.py` → `_severity_baselines(dataset)` (cacheada con `@st.cache_data`): calcula las anclas sana/enferma por especie recorriendo todo `data/`; y el bloque dentro del botón "Verificar y analizar nueva data" que calcula el score de cada archivo nuevo y arma `severidad_detalle` / `severidad_por_especie`.
+- `src/notifier.py` → `format_severity_summary()` y `format_severity_detail()`: arman las líneas de texto para el mensaje de Telegram.
+
+**Limitación conocida:** como `FSR` usa exactamente las mismas bandas que `NDVI` (ver sección 7, todavía no se le definieron bandas propias), en la práctica el score de severidad usa 6 índices con información distinta más uno duplicado. No afecta la validez del score (la mediana lo diluye), pero si en el futuro se definen bandas propias para `FSR`, el score va a aportar información algo más rica.
+
+## 10. Decisiones de diseño importantes (y el porqué)
 
 - **Sin servidor en background para Telegram**: el usuario eligió explícitamente un botón dentro de la app en vez de un proceso corriendo 24/7, porque es de uso personal y "tener un servidor es demasiado".
 - **Detección de campañas 100% genérica** (regex `{prefijo}_dd_mm_yyyy`): para que cuando se agreguen carpetas de campañas futuras, la app las reconozca solas sin tocar código.
@@ -196,7 +217,7 @@ Compara los 7 índices entre las 4 especies (mínimo 2 especies seleccionadas). 
 - **`leaf_maturity`, `health_status` y `susceptibility` son campos separados**, no uno solo: reflejan 3 conceptos biológicos distintos (madurez de la hoja, estado sanitario actual, variedad de la planta) que pueden variar independientemente.
 - **Agrupamiento por "Hoja"** (no solo por punto): las 2 hojas de cada grupo (M1/M2, T1/T2) son unidades biológicas distintas y no deben promediarse entre sí — solo se promedian las 3 medidas repetidas dentro del mismo punto de la misma hoja.
 
-## 10. Bugs corregidos en esta sesión
+## 11. Bugs corregidos en esta sesión
 
 1. **`use_container_width` deprecado** → reemplazado por `width='stretch'` en todo el proyecto.
 2. **`or` con corto-circuito en `parser.py`**: `susceptibility = susceptibility or meta.pop(...)` nunca hacía el `.pop()` cuando `susceptibility` ya era verdadero, dejando una key sobrante que rompía `FileRecord(**meta)`. Corregido haciendo el `.pop()` incondicional antes del `or`.
@@ -204,16 +225,16 @@ Compara los 7 índices entre las 4 especies (mínimo 2 especies seleccionadas). 
 4. **Bug de fórmula CARI** (ver sección 7): usaba reflectancia en vez de longitud de onda en el numerador. Corregido, documentado con comentario en el código.
 5. **Bug de agrupamiento/promediado** (ver sección 8, página 2 y 3): mezclaba hojas distintas (M1 con M2) en un solo promedio por no incluir "Hoja" como clave de agrupamiento. Corregido agregando `Hoja` = `{session}{session_num}` a las claves de agrupamiento en ambas páginas, y se agregó además una tabla de detalle sin promediar para poder auditar cada medición individual.
 
-## 11. Pendientes / posibles próximos pasos
+## 12. Pendientes / posibles próximos pasos
 
 - **Definir si `FSR` debe usar bandas distintas a NDVI** (actualmente son las mismas 800/670, dando el mismo valor numérico que NDVI — puede que el usuario quiera otras longitudes de onda para que aporte información nueva).
 - **Etiquetado final de enfermedad**: el usuario mencionó en su momento que se vería más adelante ("luego podemos ver lo de las etiquetas finales") — por ahora el etiquetado real que existe es `health_status` (Sana/Con roya) derivado del prefijo R del nombre de archivo, ya incorporado. Confirmar si esto es lo que se consideraba "etiquetado final" o si falta algo más granular (ej. severidad/grado de roya).
-- **Canefora y Cuscatleco todavía no tienen muestras con roya real** — cuando se agreguen, la app las va a reconocer automáticamente sin cambios de código (mismo patrón `R{n}p{punto}`).
+- **Canefora y Cuscatleco todavía no tienen muestras con roya real** — cuando se agreguen, la app las va a reconocer automáticamente sin cambios de código (mismo patrón `R{n}p{punto}`), y el score de severidad (sección 9) va a empezar a usar su propia ancla enferma en vez del respaldo combinado de Bourbon+Pacamara, automáticamente.
 - Si se decide inicializar git en el proyecto, agregar `roya/` (virtualenv en la raíz) al `.gitignore` antes del primer commit.
 - Considerar si la comparación estadística de "Sana vs Con roya" debería hacerse a nivel de **hoja** (promediando los 3 puntos de cada hoja primero) en vez de a nivel de **punto**, para evitar pseudo-réplicas (puntos de la misma hoja no son observaciones totalmente independientes). No se tocó en esta sesión, se dejó el comportamiento existente (comparación a nivel de punto-hoja).
 
-## 12. Cómo retomar rápido
+## 13. Cómo retomar rápido
 
 1. `streamlit run app.py` (reiniciar si ya estaba corriendo).
-2. Revisar la sección 11 (pendientes) para saber por dónde seguir.
+2. Revisar la sección 12 (pendientes) para saber por dónde seguir.
 3. Si se agregan campañas nuevas a `data/`, no hace falta tocar código — la app las detecta sola con el patrón `{prefijo}_dd_mm_yyyy` en el nombre de carpeta y `{M|T|R}{n}p{punto}{especie}{medida}` en el nombre de archivo.
