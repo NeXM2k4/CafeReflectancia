@@ -170,6 +170,19 @@ def _discover_records(data_dir: Path) -> list[FileRecord]:
                 break
 
         if species is None:
+            # Fallback: especie no encontrada en subcarpeta → intentar detectarla desde el nombre del archivo.
+            # Cubre carpetas de prueba donde los .txt van sueltos sin subcarpeta de especie
+            # (p. ej. prueba_17_07_2026/M9p1bourbon1.txt).
+            stem_m = _PREFIX_RE.match(path.stem)
+            if stem_m:
+                rest_lower_fb = path.stem[stem_m.end():].lower()
+                for key, canonical in SPECIES_CANONICAL.items():
+                    if rest_lower_fb.startswith(key):
+                        species = canonical
+                        species_folder_raw = key
+                        break
+
+        if species is None:
             continue  # carpeta no reconocida como especie; se ignora del dataset
 
         meta = _parse_filename(path.stem, species_folder_raw, species)
