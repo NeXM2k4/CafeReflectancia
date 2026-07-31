@@ -26,7 +26,11 @@ SUSCEPTIBILITY_CANONICAL = {
     "suceptible": "Susceptible",
     "no_susceptible": "No susceptible",
     "no_suceptible": "No susceptible",
+    "no_suseptible": "No susceptible",
     "nosusceptible": "No susceptible",
+    "no susceptible": "No susceptible",
+    "no suceptible": "No susceptible",
+    "no suseptible": "No susceptible",
 }
 
 # --- Madurez de la hoja: prefijo M/T del nombre de archivo ---

@@ -44,13 +44,17 @@ def _find_campaign(parts: tuple[str, ...]) -> tuple[str | None, str | None]:
         m = _CAMPAIGN_RE.match(part)
         if not m:
             continue
-        date = f"{m.group('yyyy')}-{m.group('mm')}-{m.group('dd')}"
+        dd, mm, yyyy = m.group("dd"), m.group("mm"), m.group("yyyy")
+        date = f"{yyyy}-{mm}-{dd}"
         prefix = m.group("prefix")
         code = _CAMPAIGN_CODE_RE.search(prefix)
         if code:
-            campaign_id = f"C{int(code.group(1))}"
+            base = f"C{int(code.group(1))}"
         else:
-            campaign_id = prefix.rsplit("_", 1)[-1].capitalize()
+            base = prefix.rsplit("_", 1)[-1].capitalize()
+        # Incluir la fecha en el id para que dos campanas con el mismo prefijo
+        # (p. ej. roya_15_07_2026 y roya_21_07_2026) no se colapsen en una sola columna.
+        campaign_id = f"{base}_{dd}_{mm}"
         return campaign_id, date
     return None, None
 
@@ -240,9 +244,19 @@ def scan_dataset(_fingerprint: tuple) -> pd.DataFrame:
 
 
 def get_dataset(data_dir: Path = DATA_DIR) -> pd.DataFrame:
-    """Punto de entrada: escanea data/ (con cache automatico segun su contenido)."""
+    """Punto de entrada: escanea data/ (con cache automatico segun su contenido).
+
+    Excluye Pacamara No susceptible: por decision del proyecto esas hojas
+    no participan en el analisis del dashboard (metricas, pivotes, espectros,
+    indices y severidad). Las de tipo Susceptible o sin susceptibilidad
+    clasificada si se conservan.
+    """
     fingerprint = _dir_fingerprint(data_dir)
-    return scan_dataset(fingerprint)
+    df = scan_dataset(fingerprint)
+    if df.empty:
+        return df
+    mask_excluir = (df["species"] == "Pacamara") & (df["susceptibility"] == "No susceptible")
+    return df[~mask_excluir].reset_index(drop=True)
 
 
 @st.cache_data(show_spinner=False)
