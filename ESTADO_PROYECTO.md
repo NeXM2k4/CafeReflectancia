@@ -1,6 +1,6 @@
 # Estado del Proyecto — Reflectancia Foliar / Detección de Roya
 
-Última actualización: 2026-07-17
+Última actualización: 2026-08-01
 
 Este documento resume qué es el proyecto, cómo está construido, qué se hizo en la sesión de trabajo hasta ahora, y qué queda pendiente. El objetivo es que cualquiera (vos en una sesión futura, u otra persona) pueda retomarlo sin tener que releer todo el historial de conversación.
 
@@ -36,6 +36,7 @@ pages/
   1_Espectros.py                # curvas de reflectancia individuales + promedio ± SD
   2_Indices_Espectrales.py      # indices espectrales por especie, con agrupamiento dinamico
   3_Comparacion_Especies.py     # comparacion de indices entre las 4 especies
+  4_Severidad_Roya.py           # score de severidad 0-100% por hoja/especie/campana
 src/
   config.py                     # constantes: rutas, parametros SG, longitudes de onda, colores, labels
   parser.py                     # descubrimiento y parseo de archivos .txt de data/ (el modulo mas importante)
@@ -62,16 +63,20 @@ requirements.txt
 Esto fue lo más difícil de reverse-engineerear en la sesión, y quedó **confirmado y documentado** así:
 
 ### Carpeta de campaña
-Patrón genérico: `{prefijo}_dd_mm_yyyy` (cualquier prefijo, para que campañas futuras se detecten solas). Ejemplos reales:
-- `Reflectancia_ISC_C1_29_06_2026` → campaña **C1**, fecha 2026-06-29
-- `Reflectancia_ISC_C2_06_07_2026` → campaña **C2**, fecha 2026-07-06
-- `roya_15_07_2026` → campaña **Roya**, fecha 2026-07-15 (no tiene código `Cx`, así que se usa el último segmento del prefijo capitalizado)
+Patrón genérico: `{prefijo}_dd_mm_yyyy` (cualquier prefijo, para que campañas futuras se detecten solas). El `campaign_id` derivado **siempre incluye el sufijo `dd_mm`** para que dos campañas con el mismo prefijo (p. ej. varias campañas `roya_*`) no se colisionen en pivotes/filtros. Ejemplos reales:
+- `Reflectancia_ISC_C1_29_06_2026` → campaña **C1_29_06**, fecha 2026-06-29
+- `Reflectancia_ISC_C2_06_07_2026` → campaña **C2_06_07**, fecha 2026-07-06
+- `roya_15_07_2026` → campaña **Roya_15_07**, fecha 2026-07-15
+- `roya_21_07_2026` → campaña **Roya_21_07**, fecha 2026-07-21
+- `roya_27_07_2026` → campaña **Roya_27_07**, fecha 2026-07-27
 
 ### Carpeta de especie
 Una de: `Bourbon`, `Canefora`, `Cuscatleco`, `Pacamara` (case-insensitive, la carpeta puede estar en minúsculas como en C2).
 
 ### Subcarpeta opcional de susceptibilidad (solo vista en Pacamara)
-`Susceptible` / `No_susceptible` (con variantes de ortografía toleradas: `suseptibles`, `suceptible`, `no_suceptible`, etc.) — es una propiedad de la **variedad de la planta**, no del estado sanitario actual de la hoja.
+`Susceptible` / `No_susceptible` (con variantes de ortografía toleradas: `suseptibles`, `suceptible`, `no_suceptible`, `no suseptible` con espacio, `no_suseptible`, etc. — ver `SUSCEPTIBILITY_CANONICAL` en `config.py`) — es una propiedad de la **variedad de la planta**, no del estado sanitario actual de la hoja.
+
+**Regla de negocio (agregada 2026-07-31):** las hojas Pacamara clasificadas como **"No susceptible"** se filtran en `get_dataset()` y **no aparecen en ninguna página del dashboard** (Home, Espectros, Índices, Comparación, Severidad). El filtro cubre las dos fuentes de etiqueta NS: subcarpeta y sufijo `NS` en el filename (usado en `roya_15_07_2026`). Motivo: el análisis se enfoca en plantas susceptibles a roya; las NS aportan ruido al comparar. Si se necesita el dataset crudo, usar `_discover_records(DATA_DIR)` en lugar de `get_dataset()`.
 
 ### Nombre de archivo
 Patrón: `{M|T|R}{n}p{punto}{especie}{medida}`, ejemplo `M1p2bourbon3.txt`
@@ -96,20 +101,26 @@ Estos 3 conceptos son **independientes entre sí** y así se tratan en todo el c
 
 ## 5. Estado actual de los datos (`data/`)
 
-574 archivos totales reconocidos (1 archivo con nombre no reconocido, se excluye del agrupamiento pero aparece en un expander de "no reconocidos" en la Home).
+Al 2026-08-01: **1.009 archivos** `.txt` en disco. Tras aplicar la exclusión de Pacamara "No susceptible" (ver sección 4), el dashboard analiza **828 archivos**.
 
-| Especie | C1 | C2 | Roya | Total |
-|---|---|---|---|---|
-| Bourbon | 36 | 36 | 66 | 138 |
-| Canefora | 36 | 36 | — | 72 |
-| Cuscatleco | 36 | 35 | 36 | 107 |
-| Pacamara | 72 | 73 | 112 | 257 |
+Pivote de archivos por especie y campaña (dataset del dashboard, post-filtro):
 
-Estado sanitario (`health_status`):
-- Bourbon: 108 Sana, 30 Con roya
-- Canefora: 72 Sana (sin roya aún)
-- Cuscatleco: 107 Sana (sin roya aún)
-- Pacamara: 216 Sana, 40 Con roya
+| Especie    | C1_29_06 | C2_06_07 | Roya_15_07 | Roya_21_07 | Roya_27_07 | Total |
+|------------|---------:|---------:|-----------:|-----------:|-----------:|------:|
+| Bourbon    | 36 | 36 | 66 | 66 | 66 | 270 |
+| Canefora   | 36 | 36 |  0 | 36 |  0 | 108 |
+| Cuscatleco | 36 | 36 | 36 | 36 | 36 | 180 |
+| Pacamara   | 36 | 36 | 66 | 66 | 66 | 270 |
+
+Estado sanitario (`health_status`, dataset del dashboard):
+- Bourbon: 180 Sana, 90 Con roya (roya ya presente en 15_07, 21_07 y 27_07)
+- Canefora: 108 Sana (aún sin roya)
+- Cuscatleco: 180 Sana (aún sin roya)
+- Pacamara: 180 Sana, 90 Con roya (todas las hojas Con roya son de la variedad Susceptible; en `roya_27_07_2026/Pacamara/Roya/` la subcarpeta no indica susceptibilidad y esas 30 hojas quedan con `susceptibility=NaN`)
+
+Notas:
+- Canefora no tiene datos en `Roya_15_07` ni `Roya_27_07` (no se muestrearon esas campañas).
+- El total en disco incluye 181 archivos Pacamara No susceptible que se filtran antes de llegar a la UI.
 
 ## 6. Módulos de código — qué hace cada uno
 
@@ -118,7 +129,7 @@ Todas las constantes centralizadas: ruta de datos, parámetros de suavizado Savi
 
 ### `src/parser.py`
 El módulo más importante. Responsable de:
-- `get_dataset()`: punto de entrada público. Calcula un "fingerprint" liviano de `data/` (ruta relativa + mtime + tamaño de cada `.txt`) y llama a `scan_dataset()`, que está cacheada con `@st.cache_data` usando ese fingerprint como key — así el cache se invalida solo cuando cambian los archivos en disco (se agregan/editan mediciones), sin necesitar botón manual (aunque el botón "Recargar datos" también existe por si acaso).
+- `get_dataset()`: punto de entrada público. Calcula un "fingerprint" liviano de `data/` (ruta relativa + mtime + tamaño de cada `.txt`) y llama a `scan_dataset()`, que está cacheada con `@st.cache_data` usando ese fingerprint como key — así el cache se invalida solo cuando cambian los archivos en disco (se agregan/editan mediciones), sin necesitar botón manual (aunque el botón "Recargar datos" también existe por si acaso). **Además aplica el filtro de exclusión de Pacamara No susceptible** antes de devolver el DataFrame al resto de la app.
 - `_discover_records()`: recorre `data/` recursivamente, identifica campaña (regex genérica `{prefijo}_dd_mm_yyyy`), especie, subcarpeta de susceptibilidad, y parsea el nombre de archivo con `_parse_filename()`.
 - `_parse_filename()`: aplica el regex `^([MTR])(\d+)p(\d+)` + sufijo de repetición, deriva `leaf_maturity`, `has_roya`, y (solo para Pacamara) el sufijo de susceptibilidad NS/S como fallback.
 - `FileRecord`: dataclass con todos los campos por archivo (incluye `session`, `session_num`, `point`, `repetition`, `leaf_maturity`, `has_roya`, `health_status`, `susceptibility`, etc.)
@@ -189,6 +200,9 @@ La página más rica. Filtros: especie → campaña → dimensión de agrupamien
 ### `pages/3_Comparacion_Especies.py`
 Compara los 7 índices entre las 4 especies (mínimo 2 especies seleccionadas). Mismos filtros de campaña y estado sanitario. Mismo fix de "Hoja" aplicado al agrupamiento. Tabla de promedios, boxplots por especie, estadística automática entre especies.
 
+### `pages/4_Severidad_Roya.py`
+Score de severidad de roya 0–100% por hoja, con las mismas anclas sana/enferma que usa la alerta de Telegram (ver sección 9). Filtros por campaña y especie. Muestra el detalle por hoja/punto y el promedio por especie, con las etiquetas 🟢/🟡/🔴 correspondientes al mismo rango que Telegram.
+
 ## 9. Score de severidad de roya en la alerta de Telegram
 
 Implementado a pedido de Samuel (vía WhatsApp, 2026-07-17): la alerta de Telegram ahora, además de contar archivos nuevos por especie, incluye un **score de 0% (sana) a 100% (enferma)** calculado a partir de los índices espectrales, para que un trabajador de campo sepa de un vistazo qué tan comprometida está una hoja.
@@ -217,21 +231,25 @@ Implementado a pedido de Samuel (vía WhatsApp, 2026-07-17): la alerta de Telegr
 - **`leaf_maturity`, `health_status` y `susceptibility` son campos separados**, no uno solo: reflejan 3 conceptos biológicos distintos (madurez de la hoja, estado sanitario actual, variedad de la planta) que pueden variar independientemente.
 - **Agrupamiento por "Hoja"** (no solo por punto): las 2 hojas de cada grupo (M1/M2, T1/T2) son unidades biológicas distintas y no deben promediarse entre sí — solo se promedian las 3 medidas repetidas dentro del mismo punto de la misma hoja.
 
-## 11. Bugs corregidos en esta sesión
+## 11. Bugs corregidos
 
 1. **`use_container_width` deprecado** → reemplazado por `width='stretch'` en todo el proyecto.
 2. **`or` con corto-circuito en `parser.py`**: `susceptibility = susceptibility or meta.pop(...)` nunca hacía el `.pop()` cuando `susceptibility` ya era verdadero, dejando una key sobrante que rompía `FileRecord(**meta)`. Corregido haciendo el `.pop()` incondicional antes del `or`.
 3. **`KeyError: 'health_status'`** reportado por el usuario en un run real de Streamlit — no era un bug de código (validado exhaustivamente), sino un **proceso de Streamlit viejo corriendo con módulos no recargados**. Se resolvió reiniciando el servidor.
 4. **Bug de fórmula CARI** (ver sección 7): usaba reflectancia en vez de longitud de onda en el numerador. Corregido, documentado con comentario en el código.
 5. **Bug de agrupamiento/promediado** (ver sección 8, página 2 y 3): mezclaba hojas distintas (M1 con M2) en un solo promedio por no incluir "Hoja" como clave de agrupamiento. Corregido agregando `Hoja` = `{session}{session_num}` a las claves de agrupamiento en ambas páginas, y se agregó además una tabla de detalle sin promediar para poder auditar cada medición individual.
+6. **`campaign_id` colapsaba campañas homónimas (2026-07-31)**: dos carpetas con el mismo prefijo (`roya_15_07_2026`, `roya_21_07_2026`, `roya_27_07_2026`) recibían el mismo `campaign_id = "Roya"`, por lo que aparecían como una sola columna en el pivote de la Home y como una sola opción en los multiselects de las 4 páginas de análisis. Corregido en `parser.py:_find_campaign()` incluyendo siempre el sufijo `dd_mm` en el id (`Roya_15_07`, `Roya_21_07`, `Roya_27_07`).
+7. **Variantes de carpeta "No susceptible" no reconocidas (2026-07-31)**: `SUSCEPTIBILITY_CANONICAL` no cubría `no suseptible` (con espacio y ortografía distinta) usada en `roya_21_07_2026`, dejando esas 36 hojas sin susceptibilidad clasificada. Agregadas las variantes con espacio y con guión bajo `no_suseptible`.
 
 ## 12. Pendientes / posibles próximos pasos
 
 - **Definir si `FSR` debe usar bandas distintas a NDVI** (actualmente son las mismas 800/670, dando el mismo valor numérico que NDVI — puede que el usuario quiera otras longitudes de onda para que aporte información nueva).
 - **Etiquetado final de enfermedad**: el usuario mencionó en su momento que se vería más adelante ("luego podemos ver lo de las etiquetas finales") — por ahora el etiquetado real que existe es `health_status` (Sana/Con roya) derivado del prefijo R del nombre de archivo, ya incorporado. Confirmar si esto es lo que se consideraba "etiquetado final" o si falta algo más granular (ej. severidad/grado de roya).
 - **Canefora y Cuscatleco todavía no tienen muestras con roya real** — cuando se agreguen, la app las va a reconocer automáticamente sin cambios de código (mismo patrón `R{n}p{punto}`), y el score de severidad (sección 9) va a empezar a usar su propia ancla enferma en vez del respaldo combinado de Bourbon+Pacamara, automáticamente.
+- **Susceptibilidad en subcarpetas nuevas**: en `roya_27_07_2026/Pacamara/Roya/` las hojas con roya quedan con `susceptibility=NaN` porque la subcarpeta se llama `Roya` en vez de indicar Susceptible/No_susceptible. Biológicamente son susceptibles; si se decide inferir susceptibilidad automática para la subcarpeta `Roya` (o exigir doble anidamiento `Susceptible/Roya`), hay que ajustar `_discover_records()`.
 - Si se decide inicializar git en el proyecto, agregar `roya/` (virtualenv en la raíz) al `.gitignore` antes del primer commit.
-- Considerar si la comparación estadística de "Sana vs Con roya" debería hacerse a nivel de **hoja** (promediando los 3 puntos de cada hoja primero) en vez de a nivel de **punto**, para evitar pseudo-réplicas (puntos de la misma hoja no son observaciones totalmente independientes). No se tocó en esta sesión, se dejó el comportamiento existente (comparación a nivel de punto-hoja).
+- Considerar si la comparación estadística de "Sana vs Con roya" debería hacerse a nivel de **hoja** (promediando los 3 puntos de cada hoja primero) en vez de a nivel de **punto**, para evitar pseudo-réplicas (puntos de la misma hoja no son observaciones totalmente independientes). Se dejó el comportamiento existente (comparación a nivel de punto-hoja).
+- **Documentar rangos observados vs. literatura** para cada índice en la UI (ver `ESTADO_ROYA.md` sección "Rangos observados y por qué se salen de la 'norma' de blog"): los índices no normalizados (CARI, RCI) escalan con la reflectancia en 0–100% del SpectraSuite y por eso salen valores muy por encima de los "0 a 1" que dicen los blogs genéricos.
 
 ## 13. Cómo retomar rápido
 
