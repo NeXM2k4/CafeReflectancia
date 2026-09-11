@@ -1,11 +1,11 @@
-"""Indices espectrales (NDVI, PRI, PSRI, CARI) por punto de muestreo, con estadistica automatica."""
+"""Indices espectrales por punto de muestreo, con estadistica automatica."""
 
 import pandas as pd
 import plotly.express as px
 import streamlit as st
 
 from src.config import GROUP_COLORS, INDEX_DEFINITIONS, SG_POLYORDER, SG_WINDOW, X_MAX, X_MIN
-from src.parser import get_dataset, load_spectrum
+from src.parser import get_dataset, leaf_label, load_spectrum, sorted_campaigns
 from src.processing import calcular_indices, prepare_spectrum
 from src.stats_utils import compare_groups
 from src.ui import (
@@ -33,7 +33,7 @@ recognized = df[df["name_recognized"]]
 GROUP_DIMENSIONS = {
     "Estado sanitario (Sana / Con roya)": "health_status",
     "Susceptibilidad": "susceptibility",
-    "Madurez de hoja (Madura / Tierna)": "leaf_maturity",
+    "Madurez de hoja (Madura / Tierna / Vieja)": "leaf_maturity",
 }
 
 with st.sidebar:
@@ -43,9 +43,9 @@ with st.sidebar:
         species = st.selectbox("Especie", sorted(df["species"].unique()), label_visibility="collapsed")
         sub = recognized[recognized["species"] == species].copy()
 
-        campaigns = sorted(sub["campaign_id"].dropna().unique())
-        filter_tag("Campana")
-        sel_campaigns = st.multiselect("Campana", campaigns, default=campaigns, label_visibility="collapsed")
+        campaigns = sorted_campaigns(sub)
+        filter_tag("Campaña")
+        sel_campaigns = st.multiselect("Campaña", campaigns, default=campaigns, label_visibility="collapsed")
         sub = sub[sub["campaign_id"].isin(sel_campaigns)]
 
         available_dims = [
@@ -82,11 +82,11 @@ for _, row in sub.iterrows():
         idx = calcular_indices(spec)
         rows.append({
             "Especie": row["species"],
-            "Campana": row["campaign_id"],
+            "Campaña": row["campaign_id"],
             "Estado sanitario": row["health_status"],
             "Susceptibilidad": row["susceptibility"],
             "Madurez": row["leaf_maturity"],
-            "Hoja": f"{row['session']}{row['session_num']}",
+            "Hoja": leaf_label(row["session"], row["session_num"]),
             "Punto": row["point"],
             "Medida": row["repetition"],
             "Archivo": row["filename"],
@@ -105,7 +105,7 @@ if not rows:
     st.stop()
 
 df_raw = pd.DataFrame(rows)
-indices = ["NDVI", "PRI", "PSRI", "CARI", "RCI", "EDI", "FSR"]
+indices = list(INDEX_DEFINITIONS)
 
 group_display_col = {
     "health_status": "Estado sanitario",
@@ -116,7 +116,7 @@ group_display_col = {
 # cada hoja (M1, M2, T1, T2, ...) se midio en 3 puntos, cada punto con 3 mediciones repetidas.
 # el promedio real es por (hoja, punto): promedia solo las 3 mediciones repetidas de ESE punto
 # en ESA hoja, sin mezclar M1 con M2 (son hojas fisicamente distintas).
-group_keys = ["Especie", "Campana", "Estado sanitario", "Susceptibilidad", "Madurez", "Hoja", "Punto"]
+group_keys = ["Especie", "Campaña", "Estado sanitario", "Susceptibilidad", "Madurez", "Hoja", "Punto"]
 df_points = df_raw.groupby(group_keys, dropna=False)[indices].mean().reset_index()
 
 render_index_legend(INDEX_DEFINITIONS)
@@ -124,7 +124,7 @@ render_index_legend(INDEX_DEFINITIONS)
 with st.container(border=True):
     st.subheader("Detalle de cada medicion (sin promediar)")
     st.caption("Una fila por cada medicion individual: hoja, punto y numero de medida repetida.")
-    detail_cols = ["Especie", "Campana", "Estado sanitario", "Susceptibilidad", "Madurez", "Hoja", "Punto", "Medida", "Archivo", *indices]
+    detail_cols = ["Especie", "Campaña", "Estado sanitario", "Susceptibilidad", "Madurez", "Hoja", "Punto", "Medida", "Archivo", *indices]
     df_detail = df_raw[detail_cols].sort_values(["Hoja", "Punto", "Medida"]).reset_index(drop=True)
     st.dataframe(df_detail, width='stretch', hide_index=True, column_config=index_column_config(indices))
     st.download_button(

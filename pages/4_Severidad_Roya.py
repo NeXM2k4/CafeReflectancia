@@ -4,8 +4,8 @@ import pandas as pd
 import plotly.express as px
 import streamlit as st
 
-from src.config import INDEX_DEFINITIONS, SPECIES_COLORS
-from src.parser import get_dataset, load_spectrum
+from src.config import INDEX_DEFINITIONS, RUST_RISK_CLASSES, SPECIES_COLORS, rust_risk_class
+from src.parser import get_dataset, leaf_label, load_spectrum, sorted_campaigns
 from src.processing import calcular_indices, prepare_spectrum, severity_score
 from src.severity import severity_baselines
 from src.ui import filter_tag, index_column_config, inject_base_css, render_header, render_index_legend
@@ -19,9 +19,8 @@ render_header("Severidad de Roya — hojas maduras")
 
 st.caption(
     "Score de 0 % (espectro igual al de una hoja tierna sana) a 100 % "
-    "(igual al de una hoja con roya confirmada), calculado con los 7 indices espectrales. "
-    "Solo se muestran **Bourbon** y **Pacamara**: son las especies susceptibles a la roya. "
-    "Canefora es inmune a la roya; Cuscatleco es muy resistente."
+    "(igual al de una hoja con roya confirmada), calculado con los 8 indices espectrales. "
+    "Se analizan **Bourbon** y **Pacamara**: son las especies susceptibles a la roya."
 )
 
 df = get_dataset()
@@ -41,9 +40,9 @@ if maduras.empty:
 with st.sidebar:
     st.markdown("**Filtros**")
     with st.container(border=True):
-        campaigns = sorted(maduras["campaign_id"].dropna().unique())
-        filter_tag("Campana")
-        sel_campaigns = st.multiselect("Campana", campaigns, default=campaigns, label_visibility="collapsed")
+        campaigns = sorted_campaigns(maduras)
+        filter_tag("Campaña")
+        sel_campaigns = st.multiselect("Campaña", campaigns, default=campaigns, label_visibility="collapsed")
         filter_tag("Especie")
         sel_species = st.multiselect("Especie", SUSCEPTIBLE, default=SUSCEPTIBLE, label_visibility="collapsed")
 
@@ -74,8 +73,8 @@ for _, row in sub.iterrows():
         continue
     rows.append({
         "Especie": row["species"],
-        "Campana": row["campaign_id"],
-        "Hoja": f"{row['session']}{row['session_num']}",
+        "Campaña": row["campaign_id"],
+        "Hoja": leaf_label(row["session"], row["session_num"]),
         "Punto": row["point"],
         "Medida": row["repetition"],
         "Score (%)": round(sev["score"] * 100, 1),
@@ -96,7 +95,7 @@ result_df = pd.DataFrame(rows)
 # promedio por (hoja, punto) — agrega las 3 medidas repetidas de cada punto
 df_pts = (
     result_df
-    .groupby(["Especie", "Campana", "Hoja", "Punto"], dropna=False)["Score (%)"]
+    .groupby(["Especie", "Campaña", "Hoja", "Punto"], dropna=False)["Score (%)"]
     .mean()
     .reset_index()
 )
@@ -110,27 +109,36 @@ for i, sp in enumerate(sel_species):
         cols_m[i].metric(sp, "sin datos", border=True)
         continue
     avg = sp_scores.mean()
-    label = "🟢 riesgo bajo" if avg < 33 else ("🟡 riesgo medio" if avg < 66 else "🔴 riesgo alto")
-    cols_m[i].metric(sp, f"{avg:.0f} % — {label}", border=True)
+    _, nombre_clase, emoji_clase, _ = rust_risk_class(avg / 100)
+    cols_m[i].metric(sp, f"{avg:.0f} % — {emoji_clase} {nombre_clase}", border=True)
 
 # ---------- boxplot por especie y campaña ----------
 st.subheader("Distribución de scores por especie y campaña")
 st.caption(
     "Cada punto representa el promedio de las 3 medidas repetidas de un punto de medicion "
-    "en una hoja. Las lineas punteadas marcan los umbrales de riesgo (33 % y 66 %)."
+    "en una hoja. Las lineas punteadas marcan las clases de riesgo de la escala de 11 niveles."
 )
 
 fig = px.box(
     df_pts,
-    x="Campana",
+    x="Campaña",
     y="Score (%)",
     color="Especie",
     color_discrete_map=SPECIES_COLORS,
     points="all",
     hover_data=["Hoja", "Punto"],
+    category_orders={"Campaña": campaigns},
 )
-fig.add_hline(y=33, line_dash="dot", line_color="rgba(255,200,0,0.55)", annotation_text="33 % — riesgo medio")
-fig.add_hline(y=66, line_dash="dot", line_color="rgba(220,60,60,0.55)", annotation_text="66 % — riesgo alto")
+# Una linea por clase de riesgo (cada 10 %), etiquetadas solo cada 20 % para no saturar.
+for nivel, nombre_clase, _, _ in RUST_RISK_CLASSES:
+    if nivel in (0.0, 1.0):
+        continue
+    etiqueta = nombre_clase if round(nivel * 10) % 2 == 0 else ""
+    fig.add_hline(
+        y=nivel * 100, line_dash="dot", line_width=1,
+        line_color="rgba(180,180,180,0.45)", annotation_text=etiqueta,
+        annotation_font_size=9, annotation_position="right",
+    )
 fig.update_layout(height=440, margin=dict(t=20, b=20), yaxis=dict(range=[0, 105]))
 st.plotly_chart(fig, width="stretch")
 
@@ -176,11 +184,11 @@ for sp in sel_species:
 with st.container(border=True):
     render_index_legend(INDEX_DEFINITIONS)
     st.subheader("Tabla detallada por medicion")
-    st.caption("Una fila por medicion individual. Score calculado con los 7 indices espectrales.")
-    detail_cols = ["Especie", "Campana", "Hoja", "Punto", "Medida", "Score (%)", *INDICES]
+    st.caption("Una fila por medicion individual. Score calculado con los 8 indices espectrales.")
+    detail_cols = ["Especie", "Campaña", "Hoja", "Punto", "Medida", "Score (%)", *INDICES]
     df_detail = (
         result_df[detail_cols]
-        .sort_values(["Especie", "Campana", "Hoja", "Punto", "Medida"])
+        .sort_values(["Especie", "Campaña", "Hoja", "Punto", "Medida"])
         .reset_index(drop=True)
     )
     st.dataframe(

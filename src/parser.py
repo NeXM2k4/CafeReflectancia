@@ -1,6 +1,6 @@
 """Descubrimiento y parseo de los archivos .txt de SpectraSuite en data/.
 
-El dataset crece con cada nueva campana de muestreo: este modulo escanea
+El dataset crece con cada nueva campaña de muestreo: este modulo escanea
 data/ de forma recursiva y tolera variaciones de nombre (mayusculas,
 errores de ortografia en "susceptible", archivos sueltos que no siguen
 el patron esperado) sin romper el resto del pipeline.
@@ -17,20 +17,33 @@ import streamlit as st
 
 from src.config import (
     DATA_DIR,
+    EXCLUDED_SPECIES,
     LEAF_MATURITY_CANONICAL,
     ROYA_LABEL,
     SANA_LABEL,
     SPECIES_CANONICAL,
+    SPECIES_PENDING_LABEL,
     SUSCEPTIBILITY_CANONICAL,
 )
 
-# Patron generico {prefijo}_dd_mm_yyyy para el nombre de carpeta de una campana
-# (cubre tanto "Reflectancia_ISC_C1_29_06_2026" como "roya_15_07_2026" y futuras campanas)
+# Patron generico {prefijo}_dd_mm_yyyy para el nombre de carpeta de una campaña
+# (cubre tanto "Reflectancia_ISC_C1_29_06_2026" como "roya_15_07_2026" y futuras campañas)
 _CAMPAIGN_RE = re.compile(r"^(?P<prefix>.+?)_(?P<dd>\d{2})_(?P<mm>\d{2})_(?P<yyyy>\d{4})$")
+# Variante sin prefijo, vista desde agosto 2026 (p. ej. "10_08_2026", "07_09_2026"): solo
+# dd_mm_yyyy, sin ningun texto antes. _CAMPAIGN_RE no la reconoce porque exige un prefijo.
+_CAMPAIGN_BARE_RE = re.compile(r"^(?P<dd>\d{2})_(?P<mm>\d{2})_(?P<yyyy>\d{4})$")
 _CAMPAIGN_CODE_RE = re.compile(r"C(\d+)$", re.IGNORECASE)
 
-# M = hoja madura, T = hoja tierna, R = hoja con roya (reemplaza el marcador de madurez)
-_PREFIX_RE = re.compile(r"^([MTR])(\d+)p(\d+)", re.IGNORECASE)
+# M = hoja madura, T = hoja tierna, R = hoja con roya, V = hoja vieja (agregada 2026-09-11)
+_PREFIX_RE = re.compile(r"^([MTRV])(\d+)p(\d+)", re.IGNORECASE)
+# Variante con la palabra "roya" en vez de la letra R, vista en la campaña 17_08_2026
+# (ej. "roya1p1bourbon1.txt").
+_ROYA_WORD_RE = re.compile(r"^roya(\d+)p(\d+)", re.IGNORECASE)
+# Variante punto-primero sin numero de hoja ni especie en el nombre, vista en varias campañas
+# de agosto/septiembre 2026 (ej. "p1roya1.txt", "p1vieja1.txt"). Se asume una sola hoja ("1"),
+# igual que el diseño de muestreo ya documentado para roya (una hoja R1 por campaña).
+_POINT_FIRST_RE = re.compile(r"^p(\d+)(roya|vieja)(\d+)$", re.IGNORECASE)
+_POINT_FIRST_SESSION = {"roya": "R", "vieja": "V"}
 _SUSCEPTIBILITY_SUFFIX_RE = re.compile(r"(ns|s)\d*$", re.IGNORECASE)
 
 
@@ -39,23 +52,29 @@ def _normalize_key(name: str) -> str:
 
 
 def _find_campaign(parts: tuple[str, ...]) -> tuple[str | None, str | None]:
-    """Busca en las partes de la ruta el patron {prefijo}_dd_mm_yyyy."""
+    """Busca en las partes de la ruta el patron {prefijo}_dd_mm_yyyy (o la variante sin prefijo)."""
     for part in parts:
         m = _CAMPAIGN_RE.match(part)
-        if not m:
-            continue
-        dd, mm, yyyy = m.group("dd"), m.group("mm"), m.group("yyyy")
-        date = f"{yyyy}-{mm}-{dd}"
-        prefix = m.group("prefix")
-        code = _CAMPAIGN_CODE_RE.search(prefix)
-        if code:
-            base = f"C{int(code.group(1))}"
-        else:
-            base = prefix.rsplit("_", 1)[-1].capitalize()
-        # Incluir la fecha en el id para que dos campanas con el mismo prefijo
-        # (p. ej. roya_15_07_2026 y roya_21_07_2026) no se colapsen en una sola columna.
-        campaign_id = f"{base}_{dd}_{mm}"
-        return campaign_id, date
+        if m:
+            dd, mm, yyyy = m.group("dd"), m.group("mm"), m.group("yyyy")
+            date = f"{yyyy}-{mm}-{dd}"
+            prefix = m.group("prefix")
+            code = _CAMPAIGN_CODE_RE.search(prefix)
+            if code:
+                base = f"C{int(code.group(1))}"
+            else:
+                base = prefix.rsplit("_", 1)[-1].capitalize()
+            # Incluir la fecha en el id para que dos campañas con el mismo prefijo
+            # (p. ej. roya_15_07_2026 y roya_21_07_2026) no se colapsen en una sola columna.
+            campaign_id = f"{base}_{dd}_{mm}"
+            return campaign_id, date
+
+        m_bare = _CAMPAIGN_BARE_RE.match(part)
+        if m_bare:
+            dd, mm, yyyy = m_bare.group("dd"), m_bare.group("mm"), m_bare.group("yyyy")
+            date = f"{yyyy}-{mm}-{dd}"
+            campaign_id = f"Campaña_{dd}_{mm}"
+            return campaign_id, date
     return None, None
 
 
@@ -68,23 +87,50 @@ def _detect_susceptibility_suffix(rest_lower: str) -> str | None:
 
 
 def _parse_filename(stem: str, species_folder: str, species: str) -> dict:
-    """Extrae madurez/roya (M/T/R), numero de grupo, punto, repeticion y susceptibilidad."""
-    m = _PREFIX_RE.match(stem)
-    if not m:
+    """Extrae madurez/roya/vieja (M/T/R/V), numero de grupo, punto, repeticion y susceptibilidad.
+
+    Ademas del patron estandar {M|T|R|V}{n}p{punto}{especie}{medida}, reconoce dos variantes
+    de nombre sin numero de hoja explicito, vistas en campañas de roya/hoja vieja desde
+    agosto 2026 (ver comentarios de los regex mas arriba): "roya{n}p{punto}{especie}{medida}"
+    y "p{punto}roya{medida}" / "p{punto}vieja{medida}" (se asume hoja unica "1").
+    """
+    point_first = _POINT_FIRST_RE.match(stem)
+    if point_first:
+        point, category, repetition = point_first.groups()
+        session = _POINT_FIRST_SESSION[category.lower()]
         return {
-            "session": None,
-            "session_num": None,
-            "point": None,
-            "repetition": None,
-            "name_recognized": False,
-            "leaf_maturity": None,
-            "has_roya": None,
+            "session": session,
+            "session_num": 1,
+            "point": int(point),
+            "repetition": int(repetition),
+            "name_recognized": True,
+            "leaf_maturity": LEAF_MATURITY_CANONICAL.get(session),
+            "has_roya": session == "R",
             "susceptibility_suffix": None,
         }
 
-    session, session_num, point = m.groups()
-    session = session.upper()
-    rest = stem[m.end():]
+    m = _PREFIX_RE.match(stem)
+    if m:
+        session, session_num, point = m.groups()
+        session = session.upper()
+        rest = stem[m.end():]
+    else:
+        m_word = _ROYA_WORD_RE.match(stem)
+        if not m_word:
+            return {
+                "session": None,
+                "session_num": None,
+                "point": None,
+                "repetition": None,
+                "name_recognized": False,
+                "leaf_maturity": None,
+                "has_roya": None,
+                "susceptibility_suffix": None,
+            }
+        session_num, point = m_word.groups()
+        session = "R"
+        rest = stem[m_word.end():]
+
     species_key = _normalize_key(species_folder)
     rest_lower = rest.lower()
     if rest_lower.startswith(species_key):
@@ -108,6 +154,36 @@ def _parse_filename(stem: str, species_folder: str, species: str) -> dict:
         "has_roya": session == "R",
         "susceptibility_suffix": susceptibility_suffix,
     }
+
+
+def leaf_label(session, session_num) -> str:
+    """Etiqueta de hoja para mostrar ("M1", "T2", "R1").
+
+    `session_num` se guarda como entero, pero al armar el DataFrame la columna queda float
+    (los archivos de nombre no reconocido aportan NaN), asi que sin normalizar aqui la hoja
+    se mostraria como "M1.0".
+    """
+    if pd.isna(session):
+        return "?"
+    if pd.isna(session_num):
+        return str(session)
+    return f"{session}{int(session_num)}"
+
+
+def sorted_campaigns(df: pd.DataFrame) -> list:
+    """Ids de campaña presentes en `df`, en orden cronologico real (por `campaign_date`).
+
+    El id de campaña no ordena igual que la fecha (ej. "Campaña_07_09", de septiembre, ordena
+    alfabeticamente antes que "Campaña_10_08", de agosto), asi que no alcanza con hacer
+    sorted() sobre la columna `campaign_id` directamente.
+    """
+    return (
+        df[["campaign_id", "campaign_date"]]
+        .dropna(subset=["campaign_id"])
+        .drop_duplicates()
+        .sort_values("campaign_date")["campaign_id"]
+        .tolist()
+    )
 
 
 @dataclass(frozen=True)
@@ -186,6 +262,12 @@ def _discover_records(data_dir: Path) -> list[FileRecord]:
                         species_folder_raw = key
                         break
 
+        if species is None and any(_normalize_key(part) == "vieja" for part in rel_parts[:-1]):
+            # Carpeta "vieja" (hoja vieja) sin especie identificable en el nombre del archivo
+            # (ver SPECIES_PENDING_LABEL en config.py): se agrupan aparte en vez de perderse.
+            species = SPECIES_PENDING_LABEL
+            species_folder_raw = "vieja"
+
         if species is None:
             continue  # carpeta no reconocida como especie; se ignora del dataset
 
@@ -246,16 +328,23 @@ def scan_dataset(_fingerprint: tuple) -> pd.DataFrame:
 def get_dataset(data_dir: Path = DATA_DIR) -> pd.DataFrame:
     """Punto de entrada: escanea data/ (con cache automatico segun su contenido).
 
-    Excluye Pacamara No susceptible: por decision del proyecto esas hojas
-    no participan en el analisis del dashboard (metricas, pivotes, espectros,
-    indices y severidad). Las de tipo Susceptible o sin susceptibilidad
-    clasificada si se conservan.
+    Aplica los dos filtros del proyecto antes de entregar el DataFrame:
+
+    - **Pacamara No susceptible**: esas hojas no participan del analisis (el foco son las
+      plantas susceptibles a roya). Las Susceptible o sin susceptibilidad clasificada se
+      conservan.
+    - **EXCLUDED_SPECIES**: especies sin permiso de uso de datos (ver `config.py`).
+
+    Es el unico punto donde se filtra, asi que las 4 paginas del dashboard y
+    `make_ieee_figures.py` lo heredan sin tener que repetir la condicion. Si se necesita el
+    dataset crudo, usar `_discover_records(DATA_DIR)`.
     """
     fingerprint = _dir_fingerprint(data_dir)
     df = scan_dataset(fingerprint)
     if df.empty:
         return df
     mask_excluir = (df["species"] == "Pacamara") & (df["susceptibility"] == "No susceptible")
+    mask_excluir |= df["species"].isin(EXCLUDED_SPECIES)
     return df[~mask_excluir].reset_index(drop=True)
 
 

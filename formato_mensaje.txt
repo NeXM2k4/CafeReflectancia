@@ -1,0 +1,14 @@
+🔴/🟡/🟢 [Rust risk]
+
+[Season], [Species], [Leaf]
+
+Estimated severity: [%] compared to a healthy reference. [Recommendation based on risk]
+
+[Index details; an example is shown but actual data values must be used]
+NDVI    0.52    (healthy 0.81)
+PRI    -0.03    (healthy 0.05)
+PSRI    0.18    (healthy 0.06)
+CARI    1.42    (healthy 0.71)
+RCI     0.031   (healthy 0.012)
+EDI     0.24    (healthy 0.41)
+FSR     0.55    (healthy 0.79)

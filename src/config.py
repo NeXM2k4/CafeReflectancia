@@ -19,9 +19,27 @@ SPECIES_CANONICAL = {
     "pacamara": "Pacamara",
 }
 
+# --- Especies excluidas del analisis ---
+# Entre el 2026-08-03 y el 2026-09-11 esta tupla traia ("Canefora", "Cuscatleco") por falta de
+# permiso de uso de sus datos. Se vacio el 2026-09-11 a pedido del usuario para volver a
+# mostrar las 4 especies en el dashboard. El punto de reversion sigue siendo esta tupla: si en
+# el futuro hay que excluir alguna especie de nuevo, basta con agregarla aqui.
+EXCLUDED_SPECIES = ()
+
+# --- Especie "pendiente" para hojas viejas sin especie identificable (agregada 2026-09-11) ---
+# Desde las campañas de agosto/septiembre 2026 aparece una carpeta "vieja" (hoja vieja) al mismo
+# nivel que las carpetas de especie. Solo la campaña 17_08_2026 especifica la especie en el
+# nombre de archivo (canefora); el resto de campañas con hojas viejas no trae especie en
+# absoluto. Mientras se confirma con el equipo de campo, esos archivos se agrupan bajo esta
+# etiqueta generica (ver `parser._discover_records`) en vez de perderse o asignarse a una
+# especie real por error. Cuando se sepa la especie correcta hay que reclasificar esos archivos
+# (o el parser) y esta etiqueta puede dejar de usarse.
+SPECIES_PENDING_LABEL = "Vieja (especie pendiente)"
+
 # --- Susceptibilidad (solo aplica a Pacamara por ahora) ---
 SUSCEPTIBILITY_CANONICAL = {
     "susceptible": "Susceptible",
+    "suseptible": "Susceptible",
     "suseptibles": "Susceptible",
     "suceptible": "Susceptible",
     "no_susceptible": "No susceptible",
@@ -31,25 +49,72 @@ SUSCEPTIBILITY_CANONICAL = {
     "no susceptible": "No susceptible",
     "no suceptible": "No susceptible",
     "no suseptible": "No susceptible",
+    "no suceptibles": "No susceptible",
 }
 
-# --- Madurez de la hoja: prefijo M/T del nombre de archivo ---
+# --- Madurez de la hoja: prefijo M/T/V del nombre de archivo ---
+# "V" = hoja vieja, categoria agregada 2026-09-11 (ver SPECIES_PENDING_LABEL para el problema
+# de especie sin identificar que trae esta categoria en varias campañas).
 LEAF_MATURITY_CANONICAL = {
     "M": "Madura",
     "T": "Tierna",
+    "V": "Vieja",
 }
 
 # --- Estado sanitario: prefijo R/r del nombre de archivo indica roya ---
 ROYA_LABEL = "Con roya"
 SANA_LABEL = "Sana"
 
+# --- Escala de riesgo de roya: 11 clases, una cada 10 % (definida por el usuario 2026-08-02) ---
+# Reemplaza la escala anterior de 3 niveles (bajo / medio / alto). Los nombres van en ingles
+# porque la alerta de Telegram se envia en ingles; el `level` es el riesgo nominal de la clase,
+# y un score se asigna a la clase cuyo nivel tiene mas cerca (ver `rust_risk_class`).
+RUST_RISK_CLASSES = [
+    (0.0, "Healthy", "🟢", "Clean, strong plant with no trace of the fungus."),
+    (0.1, "Incipient", "🟢", "Isolated, barely noticeable yellow spots at the base."),
+    (0.2, "Very slight", "🟡", "First orange powdery pustules on the underside of the leaf."),
+    (0.3, "Slight", "🟡", "Visible spots on several leaves of the lower third."),
+    (0.4, "Onset of moderate", "🟡", "The fungus starts climbing towards the middle of the plant."),
+    (0.5, "Moderate", "🟠", "Half the canopy affected, with evident orange powder."),
+    (0.6, "Onset of severe", "🟠", "Leaves in the middle dry out and lose colour."),
+    (0.7, "Severe", "🔴", "High infection and first noticeable leaf drop."),
+    (0.8, "Very severe", "🔴", "Advanced defoliation across almost the whole structure."),
+    (0.9, "Critical", "🔴", "Plant almost bare, with extreme tissue damage."),
+    (1.0, "Very critical", "⚫", "Total destructive infection and death of the plant."),
+]
+
+# Accion sugerida por tramo de riesgo (limite superior, texto). Se mantienen pocas acciones
+# a proposito: 11 recomendaciones distintas serian ruido para quien lee la alerta en el campo.
+RUST_RISK_ACTIONS = [
+    (0.15, "No action needed: keep the usual monitoring routine."),
+    (0.35, "Scout the lower third of the plant and repeat the measurement in the coming days."),
+    (0.55, "Apply preventive control and check neighbouring plants for spread."),
+    (0.75, "Treat this plant as soon as possible; the infection is already established."),
+    (1.01, "Treat urgently and assess whether the plant can still be recovered."),
+]
+
+
+def rust_risk_class(score: float) -> tuple[float, str, str, str]:
+    """Clase de riesgo mas cercana al score (0-1). Devuelve (nivel, nombre, emoji, descripcion).
+
+    Se asigna por cercania y no por tramo inferior para que cada clase quede centrada en su
+    riesgo nominal: 0.34 cae en "Slight" (30 %) y 0.36 en "Onset of moderate" (40 %).
+    """
+    return min(RUST_RISK_CLASSES, key=lambda clase: abs(clase[0] - score))
+
+
+def rust_risk_action(score: float) -> str:
+    """Accion sugerida para ese nivel de riesgo."""
+    return next(texto for limite, texto in RUST_RISK_ACTIONS if score < limite)
+
 # --- Longitudes de onda usadas en los indices espectrales ---
 WL_NDVI = (800, 670)
 WL_PRI = (531, 570)
 WL_PSRI = (678, 500, 750)
-WL_CARI = (550, 670, 700)
 WL_RCI = (510, 550)
 WL_EDI = (705, 750)
+WL_NDRE = (790, 720)
+WL_MNDVI705 = (750, 705, 445)
 WL_FSR = WL_NDVI  # mismas bandas que NDVI (NIR 800 / Rojo 670); nombre distinto para reporte de estres foliar
 
 # --- Paleta de colores para curvas individuales ---
@@ -66,6 +131,7 @@ COLOR_AVG = "#FAFAFA"  # claro y neutro para maxima legibilidad sobre el tema os
 GROUP_COLORS = {
     "Madura": "#2A9D8F",
     "Tierna": "#457B9D",
+    "Vieja": "#8D6A9F",
     "Susceptible": "#F4A261",
     "No susceptible": "#2A9D8F",
     SANA_LABEL: "#0CA30C",
@@ -85,6 +151,7 @@ SPECIES_COLORS = {
     "Canefora": "#008300",
     "Cuscatleco": "#D55181",
     "Pacamara": "#C98500",
+    SPECIES_PENDING_LABEL: "#8A8A8A",
 }
 
 # Descripciones breves de cada indice espectral, para la leyenda en las paginas de indices
@@ -92,10 +159,11 @@ INDEX_DEFINITIONS = {
     "NDVI": "Vigor/verdor general de la hoja (clorofila vs. infrarrojo cercano).",
     "PRI": "Eficiencia fotosintetica / estres, via el ciclo de xantofilas.",
     "PSRI": "Senescencia: sube cuando el tejido foliar se degrada.",
-    "CARI": "Concentracion relativa de clorofila, corregida por linea base.",
     "RCI": "Rust Carotenoid Index: carotenoides asociados a estres por roya.",
     "EDI": "Early Detection Index: shift del borde rojo (red-edge).",
     "FSR": "Foliar Stress Ratio (mismas bandas que NDVI en la formulacion actual).",
+    "NDRE": "Normalized Difference Red Edge: clorofila via borde rojo (790/720 nm).",
+    "mNDVI705": "NDVI modificado del borde rojo, corregido por dispersion foliar con R445.",
 }
 
 ALPHA_SIGNIFICANCE = 0.05

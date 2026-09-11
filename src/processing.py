@@ -9,9 +9,10 @@ from scipy.signal import savgol_filter
 from src.config import (
     SG_POLYORDER,
     SG_WINDOW,
-    WL_CARI,
     WL_EDI,
     WL_FSR,
+    WL_MNDVI705,
+    WL_NDRE,
     WL_NDVI,
     WL_PRI,
     WL_PSRI,
@@ -55,7 +56,7 @@ def reflectance_at(df: pd.DataFrame, wavelength: float, tol: float = 5, column: 
 
 
 def calcular_indices(df: pd.DataFrame) -> dict:
-    """NDVI, PRI, PSRI y CARI a partir de un espectro suavizado."""
+    """Indices espectrales a partir de un espectro ya suavizado."""
 
     def R(wl):
         return reflectance_at(df, wl)
@@ -69,17 +70,6 @@ def calcular_indices(df: pd.DataFrame) -> dict:
     r678, r500, r750 = R(WL_PSRI[0]), R(WL_PSRI[1]), R(WL_PSRI[2])
     psri = (r678 - r500) / r750 if r750 else np.nan
 
-    r550, r670_c, r700 = R(WL_CARI[0]), R(WL_CARI[1]), R(WL_CARI[2])
-    if r670_c and not np.isnan(r670_c):
-        a = (r700 - r550) / 150
-        b = r550 - WL_CARI[0] * a
-        # nota: formula correcta usa la longitud de onda (670), no la reflectancia R670
-        cari_num = abs(a * WL_CARI[1] + r670_c + b)
-        cari_den = np.sqrt(a ** 2 + 1)
-        cari = (r700 / r670_c) * (cari_num / cari_den) if cari_den else np.nan
-    else:
-        cari = np.nan
-
     r510, r550_rci = R(WL_RCI[0]), R(WL_RCI[1])
     rci = (1 / r510 - 1 / r550_rci) if (r510 and r550_rci) else np.nan
 
@@ -89,9 +79,19 @@ def calcular_indices(df: pd.DataFrame) -> dict:
     r_nir, r_red = R(WL_FSR[0]), R(WL_FSR[1])
     fsr = (r_nir - r_red) / (r_nir + r_red) if (r_nir + r_red) else np.nan
 
+    r790, r720 = R(WL_NDRE[0]), R(WL_NDRE[1])
+    ndre = (r790 - r720) / (r790 + r720) if (r790 + r720) else np.nan
+
+    # mNDVI705: NDVI del borde rojo corregido por dispersion foliar con la banda azul (445 nm),
+    # que es donde la reflectancia especular de la superficie de la hoja es practicamente pura.
+    r750_m, r705_m, r445 = R(WL_MNDVI705[0]), R(WL_MNDVI705[1]), R(WL_MNDVI705[2])
+    mndvi705_den = r750_m + r705_m - 2 * r445
+    mndvi705 = (r750_m - r705_m) / mndvi705_den if mndvi705_den else np.nan
+
     return {
-        "NDVI": ndvi, "PRI": pri, "PSRI": psri, "CARI": cari,
+        "NDVI": ndvi, "PRI": pri, "PSRI": psri,
         "RCI": rci, "EDI": edi, "FSR": fsr,
+        "NDRE": ndre, "mNDVI705": mndvi705,
     }
 
 

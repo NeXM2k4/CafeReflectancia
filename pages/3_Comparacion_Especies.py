@@ -5,7 +5,7 @@ import plotly.express as px
 import streamlit as st
 
 from src.config import INDEX_DEFINITIONS, SG_POLYORDER, SG_WINDOW, SPECIES_COLORS, X_MAX, X_MIN
-from src.parser import get_dataset, load_spectrum
+from src.parser import get_dataset, leaf_label, load_spectrum, sorted_campaigns
 from src.processing import calcular_indices, prepare_spectrum
 from src.stats_utils import compare_groups
 from src.ui import (
@@ -19,10 +19,11 @@ from src.ui import (
 
 st.set_page_config(page_title="Comparacion entre especies", page_icon="🌱", layout="wide")
 inject_base_css()
-render_header("Comparacion entre Especies — Bourbon, Canefora, Cuscatleco y Pacamara")
+render_header("Comparacion entre Especies")
 st.caption(
-    "Por ahora solo Bourbon y Pacamara tienen muestras con roya confirmada; "
-    "Canefora y Cuscatleco todavia solo tienen hojas sanas (Madura/Tierna)."
+    "Bourbon y Pacamara son las dos especies susceptibles a la roya: tienen muestras con roya "
+    "confirmada ademas de hojas sanas (Madura/Tierna/Vieja). Canefora y Cuscatleco solo "
+    "aportan hojas sanas — sirven para comparar el cultivar, no para detectar roya."
 )
 
 df = get_dataset()
@@ -40,9 +41,9 @@ with st.sidebar:
         sel_species = st.multiselect("Especies", species_opts, default=species_opts, label_visibility="collapsed")
         sub = recognized[recognized["species"].isin(sel_species)]
 
-        campaigns = sorted(sub["campaign_id"].dropna().unique())
-        filter_tag("Campana")
-        sel_campaigns = st.multiselect("Campana", campaigns, default=campaigns, label_visibility="collapsed")
+        campaigns = sorted_campaigns(sub)
+        filter_tag("Campaña")
+        sel_campaigns = st.multiselect("Campaña", campaigns, default=campaigns, label_visibility="collapsed")
         sub = sub[sub["campaign_id"].isin(sel_campaigns)]
 
         if sub["health_status"].notna().any():
@@ -68,10 +69,10 @@ for _, row in sub.iterrows():
         idx = calcular_indices(spec)
         rows.append({
             "Especie": row["species"],
-            "Campana": row["campaign_id"],
+            "Campaña": row["campaign_id"],
             "Estado sanitario": row["health_status"],
             "Madurez": row["leaf_maturity"],
-            "Hoja": f"{row['session']}{row['session_num']}",
+            "Hoja": leaf_label(row["session"], row["session_num"]),
             "Punto": row["point"],
             **idx,
         })
@@ -88,9 +89,9 @@ if not rows:
     st.stop()
 
 df_raw = pd.DataFrame(rows)
-indices = ["NDVI", "PRI", "PSRI", "CARI", "RCI", "EDI", "FSR"]
+indices = list(INDEX_DEFINITIONS)
 # cada hoja (M1, M2, T1, T2...) se promedia solo dentro de si misma, sin mezclar hojas distintas.
-group_keys = ["Especie", "Campana", "Estado sanitario", "Madurez", "Hoja", "Punto"]
+group_keys = ["Especie", "Campaña", "Estado sanitario", "Madurez", "Hoja", "Punto"]
 df_points = df_raw.groupby(group_keys, dropna=False)[indices].mean().reset_index()
 
 render_index_legend(INDEX_DEFINITIONS)

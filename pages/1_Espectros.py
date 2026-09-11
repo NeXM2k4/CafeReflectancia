@@ -4,7 +4,7 @@ import plotly.graph_objects as go
 import streamlit as st
 
 from src.config import SG_POLYORDER, SG_WINDOW, X_MAX, X_MIN, COLOR_AVG, SPECTRA_GROUP_PALETTE
-from src.parser import get_dataset, load_spectrum
+from src.parser import get_dataset, leaf_label, load_spectrum, sorted_campaigns
 from src.processing import average_group, prepare_spectrum
 from src.ui import filter_tag, inject_base_css, render_header
 
@@ -26,9 +26,9 @@ with st.sidebar:
         species = st.selectbox("Especie", sorted(df["species"].unique()), label_visibility="collapsed")
         sub = recognized[recognized["species"] == species]
 
-        campaigns = sorted(sub["campaign_id"].dropna().unique())
-        filter_tag("Campana")
-        sel_campaigns = st.multiselect("Campana", campaigns, default=campaigns, label_visibility="collapsed")
+        campaigns = sorted_campaigns(sub)
+        filter_tag("Campaña")
+        sel_campaigns = st.multiselect("Campaña", campaigns, default=campaigns, label_visibility="collapsed")
         sub = sub[sub["campaign_id"].isin(sel_campaigns)]
 
         if sub["health_status"].notna().any():
@@ -75,7 +75,7 @@ for _, row in sub.iterrows():
     try:
         raw = load_spectrum(row["path"])
         spectra[row["filename"]] = prepare_spectrum(raw, sg_window, sg_poly, X_MIN, X_MAX)
-        hoja_by_file[row["filename"]] = f"{row['session']}{row['session_num']}"
+        hoja_by_file[row["filename"]] = leaf_label(row["session"], row["session_num"])
     except ValueError as e:
         errors.append((row["filename"], str(e)))
 
