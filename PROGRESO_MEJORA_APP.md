@@ -21,10 +21,10 @@ para que las revise al volver — cualquiera se puede deshacer)
 
 ## Registro de avance
 
-- [ ] F0.1 — commit de lo pendiente + rama `mejora-app` + tag
-- [ ] F0.2 — arreglo del registro de Telegram (riesgo inmediato)
-- [ ] F0.3 — matplotlib en requirements.txt
-- [ ] F0.4 — prueba de humo (AppTest)
+- [x] F0.1 — commit de lo pendiente + rama `mejora-app` + tag
+- [x] F0.2 — arreglo del registro de Telegram (riesgo inmediato)
+- [x] F0.3 — matplotlib en requirements.txt
+- [x] F0.4 — prueba de humo (AppTest)
 - [ ] F1.1 — tabla de índices única y cacheada
 - [ ] F1.2 — agregación única archivo→punto→hoja-fecha
 - [ ] F1.3 — similitud con roya única
@@ -45,3 +45,40 @@ para que las revise al volver — cualquiera se puede deshacer)
 (Se marca [x] y se agrega una nota corta a medida que se completa cada ítem, más abajo.)
 
 ## Notas detalladas por tarea
+
+### F0.1 — Checkpoint
+Rama `mejora-app` creada desde `main`. Commit `7008d79` con todo lo pendiente de la sesion
+anterior (pagina 5, `temporal.py`, `evoluciontemporal.md`, `PAPER/`, ambos planes). Tag
+`app-antes-de-pulir` en ese commit, por si hay que volver atras.
+
+### F0.2 — Registro de Telegram (riesgo resuelto)
+- `src/state.py`: `file_key()` ahora usa **ruta relativa a `data/` + hash sha1 (16 hex) del
+  contenido**, cacheado con `st.cache_data` por archivo+mtime (mismo patron que
+  `read_spectrasuite`). Ya no depende de la ruta absoluta ni de que el mtime se conserve al
+  mover/clonar el proyecto.
+- `app.py`: el flujo pasa a **dos pasos**. "Verificar y analizar nueva data" solo calcula y
+  muestra la vista previa (tarjetas + resumen) en `st.session_state`; un boton nuevo "✅ Enviar a
+  Telegram" hace el envio real. Si el envio falla, **no se guarda el registro** (las novedades se
+  vuelven a mostrar la proxima vez en vez de perderse). Se agrego un botón "🧹 Marcar todo como
+  visto (sin avisar)" para resetear la linea base sin enviar nada.
+- **Migracion inmediata ejecutada:** el registro viejo (576 archivos, formato
+  `ruta_absoluta|mtime`, del 17/07) se respaldo en
+  `.state/last_run_backup_2026-09-28_pre_migracion.json` y se reemplazo por uno nuevo con los
+  **1945 archivos actuales** del dataset filtrado, en el formato nuevo. Se hizo directo con
+  `src.parser.get_dataset()` + `src.state.save_last_run()`, **sin llamar a la API de Telegram**.
+  Motivo: cambiar el formato de la clave invalida cualquier registro viejo por completo, así que
+  sin esta migracion el primer click en "Verificar" iba a mostrar ~1800 archivos como "nuevos" de
+  una sola vez (ya no se enviarían solos gracias al paso de vista previa, pero seguía siendo un
+  resultado sin sentido). De aqui en adelante, "Verificar" solo va a mostrar lo que se agregue a
+  partir de ahora.
+- Pendiente para el usuario: si en algun momento quiere notificar retroactivamente sobre alguna
+  campaña vieja, puede restaurar el backup manualmente — se deja documentado, no se borra nada.
+
+### F0.3 — matplotlib
+Agregado `matplotlib>=3.8` a `requirements.txt` (lo usa `make_ieee_figures.py`, no estaba
+declarado). Creado `requirements-dev.txt` con `pytest` para las pruebas.
+
+### F0.4 — Prueba de humo
+`tests/test_smoke_pages.py`: `AppTest` de Streamlit sobre las 5 paginas + Inicio, filtros por
+defecto. **Las 6 pasan sobre el estado original** (antes de tocar nada de F1/F2) — es la linea de
+base para detectar regresiones en cada fase siguiente. Se vuelve a correr al final de cada fase.
