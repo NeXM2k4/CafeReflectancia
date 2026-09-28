@@ -1,16 +1,48 @@
-"""Visualizacion de espectros: curvas individuales, suavizado y promedio +- SD."""
+"""Curvas de reflectancia: color por tipo de hoja, promedio +- SD por grupo visible.
 
+Reescrita en la fase F2 de plan_mejora_app.md. Cambios respecto de la version anterior:
+- **Color = tipo de hoja** (Madura/Tierna/Con roya/Vieja), trazo (solido/discontinuo) = numero
+  de hoja. Antes cada hoja fisica tenia su propio color de una paleta de 8 tonos, asi que con
+  varias campañas seleccionadas las 12 curvas de "M1" (una por fecha) se veian todas del mismo
+  color sin ningun criterio visible que las agrupara con las demas M.
+- **El promedio ± SD se calcula por tipo de hoja**, no sobre todo lo seleccionado junto: antes
+  mezclaba, por ejemplo, hojas Con roya y Tierna en un solo promedio, lo que no representa a
+  ninguno de los dos grupos.
+- Aviso si aparece reflectancia negativa en el rango mostrado (indicio de señal debil del
+  espectrometro, no un valor real).
+"""
+
+import numpy as np
 import plotly.graph_objects as go
 import streamlit as st
 
-from src.config import SG_POLYORDER, SG_WINDOW, X_MAX, X_MIN, COLOR_AVG, SPECTRA_GROUP_PALETTE
-from src.parser import get_dataset, leaf_label, load_spectrum, sorted_campaigns
+from src.config import (
+    LEAF_NUM_DASH,
+    LEAF_TYPE_COLORS,
+    LEAF_TYPE_HELP,
+    LEAF_TYPE_LABELS,
+    SG_POLYORDER,
+    SG_WINDOW,
+    X_MAX,
+)
+from src.parser import campaign_options, get_dataset, leaf_label, load_spectrum, sorted_campaigns
 from src.processing import average_group, prepare_spectrum
 from src.ui import filter_tag, inject_base_css, render_header
 
+# Rango de despliegue: por debajo de 440 nm el espectrometro tiene señal/ruido tan bajo que una
+# parte de los espectros con roya da reflectancia negativa (ver evoluciontemporal.md, seccion 6.1
+# y make_ieee_figures.py). No cambia el rango usado para calcular indices (X_MIN en config.py
+# sigue en 420 nm), solo lo que se muestra en esta pagina.
+DISPLAY_X_MIN = 440
+
+
+def _rgba(hex_color: str, alpha: float) -> str:
+    h = hex_color.lstrip("#")
+    return f"rgba({int(h[0:2], 16)},{int(h[2:4], 16)},{int(h[4:6], 16)},{alpha})"
+
 st.set_page_config(page_title="Espectros", page_icon="📈", layout="wide")
 inject_base_css()
-render_header("Espectros — curvas de reflectancia individuales y promedio ± SD")
+render_header("Espectros — reflectancia por tipo de hoja")
 
 df = get_dataset()
 if df.empty:
@@ -27,41 +59,37 @@ with st.sidebar:
         sub = recognized[recognized["species"] == species]
 
         campaigns = sorted_campaigns(sub)
+        labels_camp = campaign_options(sub)
         filter_tag("Campaña")
-        sel_campaigns = st.multiselect("Campaña", campaigns, default=campaigns, label_visibility="collapsed")
+        sel_campaigns = st.multiselect(
+            "Campaña", campaigns, default=campaigns, format_func=labels_camp.get,
+            label_visibility="collapsed",
+        )
         sub = sub[sub["campaign_id"].isin(sel_campaigns)]
 
-        if sub["health_status"].notna().any():
-            health_opts = sorted(sub["health_status"].dropna().unique())
-            filter_tag("Estado sanitario")
-            sel_health = st.multiselect("Estado sanitario", health_opts, default=health_opts, label_visibility="collapsed")
-            sub = sub[sub["health_status"].isin(sel_health)]
-
-        if sub["susceptibility"].notna().any():
-            susc_opts = sorted(sub["susceptibility"].dropna().unique())
-            filter_tag("Susceptibilidad")
-            sel_susc = st.multiselect("Susceptibilidad", susc_opts, default=susc_opts, label_visibility="collapsed")
-            sub = sub[sub["susceptibility"].isin(sel_susc)]
-
-        if sub["leaf_maturity"].notna().any():
-            maturity_opts = sorted(sub["leaf_maturity"].dropna().unique())
-            filter_tag("Madurez de hoja")
-            sel_maturity = st.multiselect("Madurez de hoja", maturity_opts, default=maturity_opts, label_visibility="collapsed")
-            st.caption("No aplica a muestras con roya (sin marcador M/T).")
-            sub = sub[sub["leaf_maturity"].isin(sel_maturity)]
+        tipos_disp = [t for t in ["M", "T", "R", "V"] if (sub["session"] == t).any()]
+        filter_tag("Tipo de hoja")
+        sel_tipos = st.multiselect(
+            "Tipo de hoja", tipos_disp, default=tipos_disp,
+            format_func=lambda t: LEAF_TYPE_LABELS[t], label_visibility="collapsed",
+        )
+        sub = sub[sub["session"].isin(sel_tipos)]
 
         point_opts = sorted(sub["point"].dropna().unique())
         filter_tag("Punto")
         sel_points = st.multiselect("Punto", point_opts, default=point_opts, label_visibility="collapsed")
         sub = sub[sub["point"].isin(sel_points)]
 
-    with st.expander("⚙️ Parametros de suavizado (Savitzky-Golay)"):
+    with st.expander("⚙️ Avanzado: suavizado (Savitzky-Golay)"):
+        st.caption("Solo cambia esta grafica; el resto de la app usa los valores por defecto.")
         sg_window = st.slider("Ventana", 5, 101, SG_WINDOW, step=2)
         sg_poly = st.slider("Orden del polinomio", 1, 5, SG_POLYORDER)
 
     show_raw = st.checkbox("Mostrar curva cruda", value=False)
-    show_avg = st.checkbox("Mostrar promedio + SD", value=True)
+    show_avg = st.checkbox("Mostrar promedio ± SD por tipo de hoja", value=True)
 
+for t in sel_tipos:
+    st.caption(f"**{LEAF_TYPE_LABELS[t]}** — {LEAF_TYPE_HELP[t]}")
 st.caption(f"{len(sub)} archivo(s) seleccionados de **{species}**.")
 
 if sub.empty:
@@ -69,13 +97,18 @@ if sub.empty:
     st.stop()
 
 spectra = {}
-hoja_by_file = {}
+meta_by_file = {}
 errors = []
 for _, row in sub.iterrows():
     try:
         raw = load_spectrum(row["path"])
-        spectra[row["filename"]] = prepare_spectrum(raw, sg_window, sg_poly, X_MIN, X_MAX)
-        hoja_by_file[row["filename"]] = leaf_label(row["session"], row["session_num"])
+        spectra[row["filename"]] = prepare_spectrum(raw, sg_window, sg_poly, x_max=X_MAX)
+        meta_by_file[row["filename"]] = {
+            "hoja": leaf_label(row["session"], row["session_num"]),
+            "tipo": row["session"],
+            "num": int(row["session_num"]),
+            "fecha": row["campaign_date"],
+        }
     except ValueError as e:
         errors.append((row["filename"], str(e)))
 
@@ -84,47 +117,57 @@ if errors:
         for name, err in errors:
             st.write(f"- **{name}**: {err}")
 
-# La leyenda agrupa por "Hoja" (no por archivo individual): con muchos puntos/repeticiones
-# seleccionados, una entrada por archivo se vuelve ilegible. Cada hoja fisica comparte color
-# y una sola entrada de leyenda; el nombre de archivo se mantiene disponible en el hover.
-hojas = sorted(set(hoja_by_file.values()))
-hoja_color = {h: SPECTRA_GROUP_PALETTE[i % len(SPECTRA_GROUP_PALETTE)] for i, h in enumerate(hojas)}
+# Leyenda agrupada por (tipo, numero de hoja): con muchas campañas, cada hoja fisica aporta una
+# curva por fecha, pero comparten color+trazo y una sola entrada de leyenda. La fecha y el
+# archivo se mantienen en el hover.
 legend_shown = set()
-
 fig = go.Figure()
 for name, spec in spectra.items():
-    hoja = hoja_by_file[name]
-    color = hoja_color[hoja]
-    show_legend_here = hoja not in legend_shown
-    legend_shown.add(hoja)
+    meta = meta_by_file[name]
+    color = LEAF_TYPE_COLORS[meta["tipo"]]
+    dash = LEAF_NUM_DASH.get(meta["num"], "dot")
+    legend_key = (meta["tipo"], meta["num"])
+    show_legend_here = legend_key not in legend_shown
+    legend_shown.add(legend_key)
+    mask = spec["wavelength"] >= DISPLAY_X_MIN
     if show_raw:
         fig.add_trace(go.Scatter(
-            x=spec["wavelength"], y=spec["reflectance"], mode="lines",
+            x=spec.loc[mask, "wavelength"], y=spec.loc[mask, "reflectance"], mode="lines",
             line=dict(color=color, width=0.7), opacity=0.5, showlegend=False,
-            legendgroup=hoja, hoverinfo="skip",
+            legendgroup=str(legend_key), hoverinfo="skip",
         ))
     fig.add_trace(go.Scatter(
-        x=spec["wavelength"], y=spec["smooth"], mode="lines",
-        line=dict(color=color, width=1.8),
-        name=f"Hoja {hoja}", legendgroup=hoja, showlegend=show_legend_here,
-        hovertemplate=f"{name}<br>%{{x}} nm · %{{y:.1f}}%<extra></extra>",
+        x=spec.loc[mask, "wavelength"], y=spec.loc[mask, "smooth"], mode="lines",
+        line=dict(color=color, width=1.6, dash=dash), opacity=0.75,
+        name=f"Hoja {meta['hoja']}", legendgroup=str(legend_key), showlegend=show_legend_here,
+        hovertemplate=f"{name}<br>{meta['fecha']}<br>%{{x}} nm · %{{y:.1f}}%<extra></extra>",
     ))
 
-if show_avg and len(spectra) > 1:
-    df_avg = average_group(list(spectra.values()))
-    if df_avg is not None:
+if show_avg:
+    for t in sel_tipos:
+        specs_tipo = [spec for name, spec in spectra.items() if meta_by_file[name]["tipo"] == t]
+        if len(specs_tipo) < 2:
+            continue
+        df_avg = average_group(specs_tipo)
+        if df_avg is None:
+            continue
+        mask = df_avg["wavelength"] >= DISPLAY_X_MIN
+        color = LEAF_TYPE_COLORS[t]
+        etiqueta = LEAF_TYPE_LABELS[t]
         fig.add_trace(go.Scatter(
-            x=df_avg["wavelength"], y=df_avg["mean"] + df_avg["std"],
+            x=df_avg.loc[mask, "wavelength"], y=df_avg.loc[mask, "mean"] + df_avg.loc[mask, "std"],
             mode="lines", line=dict(width=0), showlegend=False, hoverinfo="skip",
+            legendgroup=f"avg-{t}",
         ))
         fig.add_trace(go.Scatter(
-            x=df_avg["wavelength"], y=df_avg["mean"] - df_avg["std"],
-            mode="lines", line=dict(width=0), fill="tonexty",
-            fillcolor="rgba(250,250,250,0.13)", name="± 1 SD", hoverinfo="skip",
+            x=df_avg.loc[mask, "wavelength"], y=df_avg.loc[mask, "mean"] - df_avg.loc[mask, "std"],
+            mode="lines", line=dict(width=0), fill="tonexty", fillcolor=_rgba(color, 0.18),
+            name=f"± 1 SD ({etiqueta})", legendgroup=f"avg-{t}", hoverinfo="skip",
         ))
         fig.add_trace(go.Scatter(
-            x=df_avg["wavelength"], y=df_avg["mean"], mode="lines",
-            line=dict(color=COLOR_AVG, width=3.5, dash="dash"), name="Promedio",
+            x=df_avg.loc[mask, "wavelength"], y=df_avg.loc[mask, "mean"], mode="lines",
+            line=dict(color=color, width=3, dash="dash"),
+            name=f"Promedio ({etiqueta})", legendgroup=f"avg-{t}",
         ))
 
 fig.update_layout(
@@ -136,3 +179,10 @@ fig.update_layout(
     margin=dict(t=20),
 )
 st.plotly_chart(fig, width='stretch')
+
+reflect_neg = any((spec.loc[spec["wavelength"] >= DISPLAY_X_MIN, "reflectance"] < 0).any() for spec in spectra.values())
+if reflect_neg:
+    st.caption(
+        "⚠️ Alguna curva tiene reflectancia negativa en el rango mostrado: senal debil del "
+        "espectrometro en esa medicion, no un valor fisico real."
+    )
