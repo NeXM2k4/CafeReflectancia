@@ -1,9 +1,11 @@
 """Analisis de reflectancia foliar en cafe - deteccion de roya. Pagina de inicio."""
 
 import re
+from pathlib import Path
 
 import streamlit as st
 
+from src.config import DATA_DIR
 from src.notifier import build_notification, send_telegram_messages
 from src.parser import get_dataset, sorted_campaigns
 from src.severity import leaf_severity_reports, severity_baselines
@@ -40,9 +42,32 @@ unrecognized = df[~df["name_recognized"]]
 st.subheader("📲 Verificar y notificar nueva data")
 st.caption(
     "Compara los archivos actuales de `data/` contra la ultima verificacion y, si hay "
-    "mediciones nuevas, te avisa por Telegram."
+    "mediciones nuevas, te avisa por Telegram. La identidad de cada archivo es su ruta "
+    "relativa a `data/` + un hash de su contenido, asi que mover o clonar el proyecto no "
+    "genera novedades falsas."
 )
-if st.button("Verificar y analizar nueva data"):
+col_verif, col_reset = st.columns([2, 1])
+with col_verif:
+    verificar = st.button("Verificar y analizar nueva data", width="stretch")
+with col_reset:
+    reset = st.button(
+        "🧹 Marcar todo como visto (sin avisar)", width="stretch",
+        help=(
+            "Actualiza la linea base al estado actual de `data/` sin enviar nada a Telegram. "
+            "Usalo si el registro quedo desactualizado (por ejemplo, tras agregar muchas "
+            "campañas sin haber verificado antes) para no disparar una notificacion masiva."
+        ),
+    )
+
+if reset:
+    current_keys = {file_key(row.path, row.mtime_ns) for row in df.itertuples()}
+    save_last_run(current_keys)
+    st.success(
+        f"Listo: se marcaron {len(current_keys)} archivo(s) como vistos, sin enviar nada a "
+        "Telegram. La proxima verificacion solo avisara de lo que se agregue de aqui en adelante."
+    )
+
+if verificar:
     current_keys = {file_key(row.path, row.mtime_ns) for row in df.itertuples()}
     previous_keys = load_last_run()
     new_keys = current_keys - previous_keys
@@ -57,7 +82,10 @@ if st.button("Verificar y analizar nueva data"):
         st.info("No hay archivos nuevos desde la ultima verificacion.")
     else:
         new_paths = {k.rsplit("|", 1)[0] for k in new_keys}
-        new_df = df[df["path"].isin(new_paths)]
+        # Las claves nuevas guardan la ruta RELATIVA a data/ (ver src/state.py); el DataFrame
+        # trae la ruta absoluta, asi que se compara contra la version relativa de esa columna.
+        rel_paths = df["path"].apply(lambda p: Path(p).resolve().relative_to(DATA_DIR.resolve()).as_posix())
+        new_df = df[rel_paths.isin(new_paths)]
         resumen = new_df.groupby("species").size().sort_values(ascending=False)
         n_roya = int((new_df["health_status"] == "Con roya").sum())
 
@@ -65,23 +93,49 @@ if st.button("Verificar y analizar nueva data"):
         baselines = severity_baselines(df)
         reportes = leaf_severity_reports(new_df, baselines)
 
-        # Telegram rechaza cualquier texto de mas de 4096 caracteres, asi que la notificacion
-        # va partida en varios mensajes (una tarjeta por hoja, sin cortar tarjetas por la mitad).
-        mensajes = build_notification(len(new_df), resumen.to_dict(), n_roya, reportes)
-        ok, detalle = send_telegram_messages(mensajes)
-        save_last_run(current_keys)
-        if ok:
-            st.success(
-                f"Se detectaron {len(new_df)} archivo(s) nuevo(s) en {len(reportes)} hoja(s). {detalle}"
-            )
-        else:
-            st.warning(f"Se detectaron {len(new_df)} archivo(s) nuevo(s), pero: {detalle}")
-        st.dataframe(resumen.rename("Archivos nuevos"), width="stretch")
+        # Vista previa SIEMPRE antes de enviar: nada sale a Telegram sin que se vea primero
+        # (F2, pagina de Inicio). Se guarda en session_state para sobrevivir al rerun del boton.
+        st.session_state["preview_new_df"] = new_df
+        st.session_state["preview_resumen"] = resumen
+        st.session_state["preview_n_roya"] = n_roya
+        st.session_state["preview_reportes"] = reportes
+        st.session_state["preview_current_keys"] = current_keys
 
-        with st.expander(f"Ver el mensaje enviado ({len(mensajes)} mensaje(s) de Telegram)"):
-            for i, msg in enumerate(mensajes, start=1):
-                st.caption(f"Mensaje {i}/{len(mensajes)} — {len(msg)} caracteres")
-                st.text(re.sub(r"</?[bi]>", "", msg))
+if st.session_state.get("preview_reportes") is not None:
+    new_df = st.session_state["preview_new_df"]
+    resumen = st.session_state["preview_resumen"]
+    n_roya = st.session_state["preview_n_roya"]
+    reportes = st.session_state["preview_reportes"]
+    current_keys = st.session_state["preview_current_keys"]
+
+    st.info(f"Hay {len(new_df)} archivo(s) nuevo(s) en {len(reportes)} hoja(s). Revisa antes de enviar:")
+    st.dataframe(resumen.rename("Archivos nuevos"), width="stretch")
+
+    mensajes = build_notification(len(new_df), resumen.to_dict(), n_roya, reportes)
+    with st.expander(f"Vista previa del mensaje ({len(mensajes)} mensaje(s) de Telegram)", expanded=True):
+        for i, msg in enumerate(mensajes, start=1):
+            st.caption(f"Mensaje {i}/{len(mensajes)} — {len(msg)} caracteres")
+            st.text(re.sub(r"</?[bi]>", "", msg))
+
+    c_send, c_discard = st.columns([2, 1])
+    with c_send:
+        if st.button("✅ Enviar a Telegram", type="primary", width="stretch"):
+            ok, detalle = send_telegram_messages(mensajes)
+            if ok:
+                # El registro solo se actualiza si el envio funciono: si falla, estas
+                # mismas novedades se vuelven a mostrar la proxima vez en vez de perderse.
+                save_last_run(current_keys)
+                st.success(f"Enviado. {detalle}")
+                for k in ("preview_new_df", "preview_resumen", "preview_n_roya", "preview_reportes", "preview_current_keys"):
+                    st.session_state.pop(k, None)
+                st.rerun()
+            else:
+                st.error(f"No se pudo enviar: {detalle}. El registro no se actualizo — se reintenta la proxima vez.")
+    with c_discard:
+        if st.button("Descartar vista previa", width="stretch"):
+            for k in ("preview_new_df", "preview_resumen", "preview_n_roya", "preview_reportes", "preview_current_keys"):
+                st.session_state.pop(k, None)
+            st.rerun()
 
 st.divider()
 
