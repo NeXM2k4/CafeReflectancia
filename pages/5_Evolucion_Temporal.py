@@ -392,7 +392,7 @@ def m_panels(data, ycol, y_title, sdcol=None, scale=1.0, risk_lines=False, zero_
             for nivel, nombre_clase, _, _ in RUST_RISK_CLASSES:
                 if nivel in (0.0, 1.0):
                     continue
-                etiqueta = nombre_clase if (j == 1 and round(nivel * 10) % 2 == 0) else ""
+                etiqueta = nombre_clase if j == 1 else ""
                 fig.add_hline(y=nivel * 100, line_dash="dot", line_width=1, line_color="rgba(180,180,180,0.3)",
                               annotation_text=etiqueta, annotation_font_size=9,
                               annotation_font_color=TEXT_MUTED, annotation_position="top left", row=row, col=j)
@@ -1015,7 +1015,7 @@ if not sin_recorte:
             continue
         fig.add_hline(
             y=nivel * 100, line_dash="dot", line_width=1, line_color="rgba(180,180,180,0.3)",
-            annotation_text=nombre_clase if round(nivel * 10) % 2 == 0 else "",
+            annotation_text=nombre_clase,
             annotation_font_size=9, annotation_font_color=TEXT_MUTED, annotation_position="top left",
         )
 else:

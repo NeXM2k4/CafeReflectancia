@@ -67,10 +67,17 @@ def _fmt(v, decimals: int = 3) -> str:
 
 
 def _class_bounds(indice: int) -> tuple[float, float]:
-    """Tramo de severidad que cae en esa clase: al asignarse por cercania, es +-5 % del nivel."""
-    nivel = RUST_RISK_CLASSES[indice][0]
-    bajo = 0.0 if indice == 0 else nivel - 0.05
-    alto = 1.0 if indice == len(RUST_RISK_CLASSES) - 1 else nivel + 0.05
+    """Tramo de similitud que cae en esa clase: como se asigna por cercania (no por umbral
+
+    fijo), el limite entre dos clases es el punto medio entre sus niveles nominales. Antes se
+    usaba un margen fijo de +-5 %, valido solo cuando las clases estaban espaciadas cada 10 %
+    (las 11 clases viejas); con las 4 clases actuales (espaciado desigual: 0, 1/3, 2/3, 1) un
+    margen fijo dejaria huecos o superposiciones en el texto de `format_risk_scale()`.
+    """
+    niveles = [c[0] for c in RUST_RISK_CLASSES]
+    nivel = niveles[indice]
+    bajo = 0.0 if indice == 0 else (niveles[indice - 1] + nivel) / 2
+    alto = 1.0 if indice == len(RUST_RISK_CLASSES) - 1 else (nivel + niveles[indice + 1]) / 2
     return bajo, alto
 
 

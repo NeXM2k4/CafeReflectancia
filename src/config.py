@@ -90,46 +90,42 @@ def leaf_type_label(code: str, short: bool = False) -> str:
     nombre = LEAF_TYPE_LABELS.get(code, str(code))
     return nombre if short else f"{nombre} ({code})"
 
-# --- Escala de riesgo de roya: 11 clases, una cada 10 % (definida por el usuario 2026-08-02) ---
-# Reemplaza la escala anterior de 3 niveles (bajo / medio / alto). Los nombres van en ingles
-# porque la alerta de Telegram se envia en ingles; el `level` es el riesgo nominal de la clase,
-# y un score se asigna a la clase cuyo nivel tiene mas cerca (ver `rust_risk_class`).
+# --- Escala de similitud con roya: 4 clases (rediseñada 2026-09-28, ver plan_mejora_app.md D4) ---
+# Hasta el 2026-09-27 eran 11 clases con descripciones de **planta entera** ("defoliacion",
+# "muerte de la planta"), calculadas a partir de 3 puntos de **una sola hoja** con roya por
+# especie. Una escala tan fina no se puede sostener con ese tamaño de muestra (n=1), y las
+# descripciones de sintomas de planta no corresponden a lo que en realidad se mide (reflectancia
+# de una hoja). Las 4 clases describen **similitud espectral**, no severidad de la planta. Los
+# nombres van en español (la alerta de Telegram pasa a español, ver D1); `level` es el valor
+# nominal de la clase y un score se asigna a la clase cuyo nivel tiene mas cerca
+# (ver `rust_risk_class`).
 RUST_RISK_CLASSES = [
-    (0.0, "Healthy", "🟢", "Clean, strong plant with no trace of the fungus."),
-    (0.1, "Incipient", "🟢", "Isolated, barely noticeable yellow spots at the base."),
-    (0.2, "Very slight", "🟡", "First orange powdery pustules on the underside of the leaf."),
-    (0.3, "Slight", "🟡", "Visible spots on several leaves of the lower third."),
-    (0.4, "Onset of moderate", "🟡", "The fungus starts climbing towards the middle of the plant."),
-    (0.5, "Moderate", "🟠", "Half the canopy affected, with evident orange powder."),
-    (0.6, "Onset of severe", "🟠", "Leaves in the middle dry out and lose colour."),
-    (0.7, "Severe", "🔴", "High infection and first noticeable leaf drop."),
-    (0.8, "Very severe", "🔴", "Advanced defoliation across almost the whole structure."),
-    (0.9, "Critical", "🔴", "Plant almost bare, with extreme tissue damage."),
-    (1.0, "Very critical", "⚫", "Total destructive infection and death of the plant."),
+    (0.0, "Sin señal de roya", "🟢", "Espectro similar al de una hoja tierna sana de referencia."),
+    (1 / 3, "Vigilar", "🟡", "Alguna similitud con la hoja de referencia con roya, todavia debil."),
+    (2 / 3, "Revisar en campo", "🟠", "Similitud considerable con la hoja de referencia con roya."),
+    (1.0, "Alta similitud con roya", "🔴", "El espectro se parece mucho al de la hoja con roya confirmada."),
 ]
 
-# Accion sugerida por tramo de riesgo (limite superior, texto). Se mantienen pocas acciones
-# a proposito: 11 recomendaciones distintas serian ruido para quien lee la alerta en el campo.
+# Accion sugerida por clase (una por clase: con solo 4 no hace falta agrupar en tramos).
 RUST_RISK_ACTIONS = [
-    (0.15, "No action needed: keep the usual monitoring routine."),
-    (0.35, "Scout the lower third of the plant and repeat the measurement in the coming days."),
-    (0.55, "Apply preventive control and check neighbouring plants for spread."),
-    (0.75, "Treat this plant as soon as possible; the infection is already established."),
-    (1.01, "Treat urgently and assess whether the plant can still be recovered."),
+    (1 / 6, "Sin accion necesaria: mantener el monitoreo habitual."),
+    (0.5, "Revisar esta hoja/planta en la proxima visita de campo."),
+    (5 / 6, "Inspeccionar esta hoja en campo lo antes posible."),
+    (1.01, "Inspeccionar de inmediato y evaluar manejo/tratamiento contra la roya."),
 ]
 
 
 def rust_risk_class(score: float) -> tuple[float, str, str, str]:
-    """Clase de riesgo mas cercana al score (0-1). Devuelve (nivel, nombre, emoji, descripcion).
+    """Clase de similitud mas cercana al score (0-1). Devuelve (nivel, nombre, emoji, descripcion).
 
-    Se asigna por cercania y no por tramo inferior para que cada clase quede centrada en su
-    riesgo nominal: 0.34 cae en "Slight" (30 %) y 0.36 en "Onset of moderate" (40 %).
+    Se asigna por cercania (no por tramo inferior) para que cada clase quede centrada en su
+    valor nominal.
     """
     return min(RUST_RISK_CLASSES, key=lambda clase: abs(clase[0] - score))
 
 
 def rust_risk_action(score: float) -> str:
-    """Accion sugerida para ese nivel de riesgo."""
+    """Accion sugerida para esa similitud."""
     return next(texto for limite, texto in RUST_RISK_ACTIONS if score < limite)
 
 # --- Longitudes de onda usadas en los indices espectrales ---

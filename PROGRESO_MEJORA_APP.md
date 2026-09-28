@@ -34,7 +34,7 @@ para que las revise al volver — cualquiera se puede deshacer)
 - [x] F2 — Inicio
 - [ ] F2 — página 2 (Índices)
 - [ ] F2 — página 3 (Especies)
-- [ ] F2 — página 4 (Estado de las hojas)
+- [x] F2 — página 4 (Estado de las hojas)
 - [ ] F2 — página 1 (Espectros)
 - [ ] F2 — página 5 (Evolución temporal)
 - [ ] F3 — alerta de Telegram
@@ -45,6 +45,37 @@ para que las revise al volver — cualquiera se puede deshacer)
 (Se marca [x] y se agrega una nota corta a medida que se completa cada ítem, más abajo.)
 
 ## Notas detalladas por tarea
+
+### D4 aplicada — Escala de riesgo reducida a 4 clases
+`src/config.py`: `RUST_RISK_CLASSES` pasa de 11 clases (con descripciones de planta entera:
+"defoliacion", "muerte de la planta") a 4 clases en español, describiendo **similitud
+espectral** en vez de sintomas de planta: Sin señal de roya (0), Vigilar (1/3), Revisar en campo
+(2/3), Alta similitud con roya (1). `RUST_RISK_ACTIONS` bajo de 5 a 4 acciones (una por clase).
+`notifier._class_bounds()` corregido: asumia espaciado uniforme de 10 % (valido solo para 11
+clases); ahora calcula el limite como el punto medio entre niveles adyacentes, generico para
+cualquier cantidad de clases. Los nombres de identificadores (`RUST_RISK_CLASSES`,
+`rust_risk_class()`, `rust_risk_action()`) se mantuvieron sin cambios a proposito para que la
+pagina 5 (que ya las usaba para las lineas de fondo) heredara las 4 clases sin tocar su codigo.
+Ajustado en la pagina 5 el throttle "cada 20%" de las etiquetas (pensado para 11 clases, dejaba
+las 2 clases del medio sin etiqueta con solo 4).
+
+### F2 — página 4 (renombrada `pages/4_Estado_Hojas.py`, antes `4_Severidad_Roya.py`)
+Reescrita: unidad **hoja** (una fila por hoja, columnas = fecha) en vez de punto/archivo.
+Mapa de calor de similitud por especie con T y R1 como filas de referencia (deberian salir cerca
+de 0 % y 100 % por construccion). Se elimino el "resumen por especie" (promediaba 12 semanas y
+2 hojas en un numero) y el boxplot por punto. Detalle por hoja+fecha elegida en vez de promedio
+global. Titulo y textos usan "similitud espectral con roya", no "severidad".
+
+**Bug real encontrado y corregido al verificar la unificacion (X5):** comparando el numero de
+esta pagina contra el que production la ruta de Telegram (`leaf_severity_reports`) para la misma
+hoja-fecha, salian **distintos** (4.43 % vs 2.0 % para Bourbon M1 el 21/07) — el orden de
+operaciones no era el mismo: Telegram calculaba la mediana normalizada **por archivo** y despues
+promediaba esas medianas; la pagina 4/5 promedia primero los indices crudos y normaliza una sola
+vez. Se corrigio `leaf_severity_reports()` para usar el mismo orden (agregar indices crudos a
+nivel hoja, un solo `severity_score()` al final). **Verificado tras el fix: diferencia 0.0 en
+las 191 hojas-fecha del dataset**, comparando `leaf_date_similarity()` contra
+`leaf_severity_reports()` alimentada con cada subconjunto especie+campaña por separado (simula
+exactamente lo que veria Telegram con datos nuevos).
 
 ### F2 — Inicio (`app.py`)
 Reordenado en 4 secciones numeradas: (1) que datos hay — metricas + pestañas "por especie y

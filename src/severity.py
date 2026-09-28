@@ -89,6 +89,34 @@ def severity_baselines(dataset: pd.DataFrame) -> dict:
     return baselines
 
 
+def leaf_date_similarity(leaf_dates: pd.DataFrame, baselines: dict) -> pd.DataFrame:
+    """Similitud con roya (0-1) para cada fila de una tabla hoja-fecha (`leaf_date_table`).
+
+    Usa las mismas anclas que `leaf_severity_reports()` (la alerta de Telegram), asi que una
+    hoja-fecha muestra el mismo numero en la pagina 4 y en la pagina 5 (X5 de
+    `plan_mejora_app.md`: "una sola definicion de similitud con roya en toda la app").
+    """
+    out = leaf_dates.copy()
+    scores, n_indices = [], []
+    for row in out.itertuples():
+        baseline = baselines.get(row.species)
+        if baseline is None:
+            scores.append(np.nan)
+            n_indices.append(0)
+            continue
+        values = {idx: getattr(row, idx) for idx in DISPLAY_INDICES}
+        sev = severity_score(values, baseline["indices"])
+        if sev is None:
+            scores.append(np.nan)
+            n_indices.append(0)
+        else:
+            scores.append(sev["score"])
+            n_indices.append(sev["n_indices"])
+    out["similitud"] = scores
+    out["similitud_n_indices"] = n_indices
+    return out
+
+
 def _normalizado(valor, sana, enferma) -> float | None:
     """Posicion del valor entre la referencia sana (0) y la de roya (1), recortada a 0-1."""
     if valor is None or sana is None or enferma is None:
@@ -104,7 +132,13 @@ def leaf_severity_reports(new_df: pd.DataFrame, baselines: dict) -> list[dict]:
     Se promedia en dos pasos —primero las medidas repetidas de cada punto, despues los puntos
     de la hoja— para que una hoja con puntos incompletos no quede sesgada hacia el punto que
     tenga mas repeticiones. Solo p1-p3 (mismo criterio que el resto de la app, ver
-    `TEMPORAL_VALID_POINTS`). Se promedia tanto la similitud como cada indice.
+    `TEMPORAL_VALID_POINTS`). **La similitud se calcula una sola vez, sobre el promedio final de
+    cada indice** (no se promedia una similitud calculada por archivo): es exactamente el mismo
+    orden de operaciones que `leaf_date_similarity()`, para que una hoja-fecha muestre el mismo
+    numero en Telegram, en la pagina 4 y en la pagina 5 (X5 de `plan_mejora_app.md`). Antes de
+    esta correccion (2026-09-28) el orden era distinto (mediana de normalizados por archivo,
+    despues promedio) y daba un numero ligeramente distinto al de las paginas 4/5 para la misma
+    hoja-fecha.
 
     Devuelve una lista de dicts (una por hoja) ordenada de mayor a menor similitud, con el
     valor de cada indice, su referencia sana y su posicion normalizada hacia la referencia
@@ -113,15 +147,11 @@ def leaf_severity_reports(new_df: pd.DataFrame, baselines: dict) -> list[dict]:
     filas = []
     sel = new_df[new_df["name_recognized"] & new_df["point"].isin(TEMPORAL_VALID_POINTS)]
     for row in sel.itertuples():
-        especie_baseline = baselines.get(row.species)
-        if especie_baseline is None:
+        if baselines.get(row.species) is None:
             continue
         try:
             idx = calcular_indices(prepare_spectrum(load_spectrum(row.path)))
         except ValueError:
-            continue
-        sev = severity_score(idx, especie_baseline["indices"])
-        if sev is None:
             continue
         filas.append({
             "species": row.species,
@@ -129,7 +159,6 @@ def leaf_severity_reports(new_df: pd.DataFrame, baselines: dict) -> list[dict]:
             "campaign_date": row.campaign_date,
             "hoja": leaf_label(row.session, row.session_num),
             "punto": row.point,
-            "score": sev["score"],
             **idx,
         })
 
@@ -137,12 +166,11 @@ def leaf_severity_reports(new_df: pd.DataFrame, baselines: dict) -> list[dict]:
         return []
 
     medidas = pd.DataFrame(filas)
-    valores = ["score", *DISPLAY_INDICES]
     claves_punto = ["species", "campaign", "hoja", "punto"]
     claves_hoja = ["species", "campaign", "hoja"]
 
-    por_punto = medidas.groupby(claves_punto, dropna=False)[valores].mean().reset_index()
-    por_hoja = por_punto.groupby(claves_hoja, dropna=False)[valores].mean()
+    por_punto = medidas.groupby(claves_punto, dropna=False)[DISPLAY_INDICES].mean().reset_index()
+    por_hoja = por_punto.groupby(claves_hoja, dropna=False)[DISPLAY_INDICES].mean()
     n_puntos = por_punto.groupby(claves_hoja, dropna=False).size()
     # La fecha es constante dentro de cada campaña, asi que basta con mapearla una vez.
     fecha_por_campana = dict(zip(medidas["campaign"], medidas["campaign_date"]))
@@ -166,13 +194,19 @@ def leaf_severity_reports(new_df: pd.DataFrame, baselines: dict) -> list[dict]:
                 "normalizado": _normalizado(valor, ref.get("sana"), ref.get("enferma")),
             }
 
+        # Un solo calculo de similitud, sobre el promedio final de cada indice (no una mediana
+        # por archivo que despues se promedia): mismo orden que `leaf_date_similarity()`.
+        sev = severity_score({idx: fila[idx] for idx in DISPLAY_INDICES}, idx_baseline)
+        if sev is None:
+            continue
+
         reportes.append({
             "species": species,
             "campaign": campaign if pd.notna(campaign) else None,
             "campaign_date": fecha_por_campana.get(campaign),
             "hoja": hoja,
-            "score": float(fila["score"]),
-            "n_indices": sum(1 for v in indices.values() if v["normalizado"] is not None),
+            "score": sev["score"],
+            "n_indices": sev["n_indices"],
             "n_puntos": int(n_puntos.loc[clave]),
             "referencia_propia": especie_baseline.get("referencia_propia", True),
             "indices": indices,
