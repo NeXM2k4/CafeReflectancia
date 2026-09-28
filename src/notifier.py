@@ -103,9 +103,9 @@ def format_index_ranges(index_ranges: dict) -> str:
     muestran el porcentaje de similitud de ese indice en particular.
     """
     lineas = [
-        "📊 <b>Rangos de referencia de cada indice</b>",
+        "📊 <b>Rangos de referencia de cada índice</b>",
         "",
-        "Minimo y maximo observado en todas las hojas de referencia (tiernas + con roya):",
+        "Mínimo y máximo observado en todas las hojas de referencia (tiernas + con roya):",
     ]
     for name in INDICES_ORDER:
         rango = index_ranges.get(name, {})
@@ -135,15 +135,26 @@ def format_leaf_report(reporte: dict) -> str:
     nota_ref = (
         ""
         if reporte.get("referencia_propia", True)
-        else " <i>(referencia estimada: esta especie todavia no tiene medidas de roya propias)</i>"
+        else " <i>(referencia estimada: esta especie todavía no tiene medidas de roya propias)</i>"
     )
     # F3.1: las hojas Tierna/Con roya que llegan en el mismo lote son la referencia que define
     # las anclas (deberian salir ~0 % y ~100 % por construccion), no una alerta para actuar.
     nota_tipo = ""
+    accion = rust_risk_action(score)
     if hoja[:1] == "T":
-        nota_tipo = " <i>(hoja de referencia sana — no requiere accion en si misma)</i>"
+        nota_tipo = " <i>(hoja de referencia sana)</i>"
+        accion = (
+            "⚠️ Hoja tierna con similitud alta: puede ser una medición dudosa o que la hoja ya "
+            "maduró (las tiernas envejecen). Verificar antes de interpretar el resto." if score >= 1 / 3
+            else "Hoja de referencia: no requiere acción."
+        )
     elif hoja[:1] == "R":
-        nota_tipo = " <i>(hoja de referencia con roya confirmada — no requiere accion en si misma)</i>"
+        nota_tipo = " <i>(hoja de referencia con roya confirmada)</i>"
+        accion = (
+            "⚠️ La hoja con roya de referencia sale con similitud baja: probable medición dudosa "
+            "ese día, verificarla antes de interpretar el resto." if score <= 2 / 3
+            else "Hoja de referencia: no requiere acción."
+        )
     # F3.5: menos de 3 puntos ese dia es una medicion mas fragil que de costumbre.
     nota_calidad = (
         f" ⚠️ <i>medida con solo {reporte['n_puntos']} punto(s) esa fecha</i>"
@@ -158,9 +169,9 @@ def format_leaf_report(reporte: dict) -> str:
         f"Similitud con la hoja con roya: <b>{score * 100:.0f} %</b> (0 % = como una hoja "
         f"tierna sana; 100 % = como la hoja con roya confirmada de referencia).",
         f"<i>{_esc(descripcion)}</i>{nota_tipo}{nota_calidad}",
-        f"{rust_risk_action(score)}{nota_ref}",
+        f"{accion}{nota_ref}",
         "",
-        f"Indices — valor y similitud de ese indice por si solo "
+        f"Índices — valor y similitud de ese índice por sí solo "
         f"({reporte['n_indices']}/{len(INDICES_ORDER)} comparables):",
     ]
 
@@ -180,7 +191,7 @@ def format_leaf_report(reporte: dict) -> str:
 def format_header(n_archivos: int, archivos_por_especie: dict, n_roya: int, reportes: list) -> str:
     """Primer mensaje: cuantos archivos nuevos hay, por especie, y como leer lo que sigue."""
     lineas = [
-        "🍃 <b>Analisis de reflectancia actualizado</b>",
+        "🍃 <b>Análisis de reflectancia actualizado</b>",
         f"{n_archivos} archivo(s) nuevo(s) detectado(s) en data/"
         + (f" — {len(reportes)} hoja(s) analizada(s)." if reportes else "."),
     ]
@@ -191,17 +202,17 @@ def format_header(n_archivos: int, archivos_por_especie: dict, n_roya: int, repo
     if reportes:
         lineas += [
             "",
-            "Cada hoja se reporta como el promedio de sus puntos de medicion y se asigna a la "
-            f"clase mas cercana de las {len(RUST_RISK_CLASSES)}. Los indices en <b>negrita</b> "
-            f"estan en rango de alerta (≥ {ALERT_THRESHOLD * 100:.0f} % del camino hacia la "
+            "Cada hoja se reporta como el promedio de sus puntos de medición y se asigna a la "
+            f"clase más cercana de las {len(RUST_RISK_CLASSES)}. Los índices en <b>negrita</b> "
+            f"están en rango de alerta (≥ {ALERT_THRESHOLD * 100:.0f} % del camino hacia la "
             "referencia con roya). Las hojas Tierna/Con roya que aparezcan son la referencia, "
             "no una alerta.",
         ]
         if any(not r.get("referencia_propia", True) for r in reportes):
             lineas += [
                 "",
-                "ℹ️ <i>Algunas de estas especies todavia no tienen medidas de roya propias, asi "
-                "que su similitud usa la referencia combinada de las que si tienen.</i>",
+                "ℹ️ <i>Algunas de estas especies todavía no tienen medidas de roya propias, así "
+                "que su similitud usa la referencia combinada de las que sí tienen.</i>",
             ]
 
     return "\n".join(lineas)

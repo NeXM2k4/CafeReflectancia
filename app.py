@@ -11,7 +11,7 @@ from pathlib import Path
 
 import streamlit as st
 
-from src.config import DATA_DIR, LEAF_TYPE_HELP, LEAF_TYPE_LABELS, ROYA_LABEL, SANA_LABEL, SPECIES_PENDING_LABEL
+from src.config import DATA_DIR, LEAF_TYPE_HELP, LEAF_TYPE_LABELS, ROYA_LABEL, SPECIES_PENDING_LABEL
 from src.indices import file_index_table, leaf_date_table, quality_flags
 from src.notifier import build_notification, send_telegram_messages
 from src.parser import campaign_options, get_dataset, raw_dataset, sorted_campaigns
@@ -19,9 +19,9 @@ from src.severity import leaf_severity_reports, severity_baselines
 from src.state import file_key, load_last_run, save_last_run
 from src.ui import inject_base_css, render_header, render_styled_pivot
 
-st.set_page_config(page_title="Reflectancia Cafe - Roya", page_icon="🍃", layout="wide")
+st.set_page_config(page_title="Reflectancia Café - Roya", page_icon="🍃", layout="wide")
 inject_base_css()
-render_header("Inicio — que datos hay, su calidad, y novedades")
+render_header("Inicio — qué datos hay, su calidad, y novedades")
 
 with st.sidebar:
     st.header("Datos")
@@ -29,8 +29,8 @@ with st.sidebar:
         st.cache_data.clear()
         st.rerun()
     st.caption(
-        "El escaneo de la carpeta `data/` se actualiza automaticamente "
-        "cuando se agregan o modifican archivos, pero puedes forzarlo aqui."
+        "El escaneo de la carpeta `data/` se actualiza automáticamente "
+        "cuando se agregan o modifican archivos, pero puedes forzarlo aquí."
     )
 
 df = get_dataset()
@@ -49,26 +49,26 @@ raw = raw_dataset()
 # ============================================================================
 # 1. Que datos hay
 # ============================================================================
-st.subheader("1. Que datos hay")
+st.subheader("1. Qué datos hay")
 n_hojas_fisicas = recognized.groupby(["species", "session", "session_num"]).ngroups
 
 c1, c2, c3, c4 = st.columns(4)
-c1.metric("Archivos analizados", len(df), border=True, help="Tras aplicar los filtros de la seccion 2.")
+c1.metric("Archivos analizados", len(df), border=True, help="Tras aplicar los filtros de la sección 2.")
 c2.metric(
     "Especies", df.loc[df["species"] != SPECIES_PENDING_LABEL, "species"].nunique(), border=True,
-    help="No cuenta la categoria 'especie pendiente' (ver seccion 2): esa no es una especie real.",
+    help="No cuenta la categoría 'especie pendiente' (ver sección 2): esa no es una especie real.",
 )
 c3.metric("Campañas", df["campaign_id"].nunique(), border=True)
 c4.metric(
     "Hojas fisicas con serie", n_hojas_fisicas, border=True,
-    help="Combinaciones especie + tipo de hoja + numero distintas (M1, M2, T1, T2, R1...).",
+    help="Combinaciones especie + tipo de hoja + número distintas (M1, M2, T1, T2, R1...).",
 )
 
 tab_especie, tab_hoja = st.tabs(["Por especie y campaña", "Por tipo de hoja"])
 
 with tab_especie:
     st.caption(
-        "Numero de archivos (mediciones individuales) por especie y fecha de campaña. "
+        "Número de archivos (mediciones individuales) por especie y fecha de campaña. "
         "Las columnas van en orden cronologico real, no alfabetico."
     )
     labels = campaign_options(df)
@@ -83,7 +83,7 @@ with tab_especie:
 
 with tab_hoja:
     st.caption(
-        "**Tipo de hoja**, no estado sanitario: Madura y Tierna no tienen sintomas visibles, "
+        "**Tipo de hoja**, no estado sanitario: Madura y Tierna no tienen síntomas visibles, "
         "pero su estado sanitario real **no se conoce** — es justo lo que el resto de la app "
         "trata de estimar. Solo 'Con roya' es un diagnostico confirmado visualmente."
     )
@@ -136,19 +136,19 @@ n_fuera_p1p3 = int((~files_all["point"].isin([1, 2, 3])).sum())
 
 filas_calidad = [
     ("Pacamara \"No susceptible\"", n_no_susceptible,
-     "Variedad no susceptible a roya: fuera de foco del proyecto. Excluidas de todas las paginas."),
+     "Variedad no susceptible a roya: fuera de foco del proyecto. Excluidas de todas las páginas."),
     ("Especie pendiente (hoja \"vieja\" sin especie)", n_pendiente,
-     "No se sabe a que especie corresponden (ver ESTADO_PROYECTO.md §4/§12). Agrupadas aparte, "
+     "No se sabe a que especie corresponden (ver docs/bitacora.md §4/§12). Agrupadas aparte, "
      "nunca mezcladas con las 4 especies reales."),
     ("Nombre de archivo no reconocido", len(unrecognized),
      "No siguen el patron {M|T|R|V}{n}p{punto}{especie}{repeticion}. Visibles en el expander de abajo."),
     ("Puntos fuera de p1-p3 (p4-p6)", n_fuera_p1p3,
-     "Los puntos no son ubicaciones fijas entre campañas; solo p1-p3 se usan en indices, "
-     "estadistica y similitud (decision confirmada con el equipo de campo)."),
+     "Los puntos no son ubicaciones fijas entre campañas; solo p1-p3 se usan en índices, "
+     "estadística y similitud (decisión confirmada con el equipo de campo)."),
     ("Hojas-fecha marcadas por control de calidad", n_qc_atipico,
-     "Outlier respecto de la propia historia de esa hoja (4+ de 7 indices con |z robusto| > 3.5). "
+     "Outlier respecto de la propia historia de esa hoja (4+ de 7 índices con |z robusto| > 3.5). "
      "Excluidas solo de las anclas de similitud, nunca borradas ni ocultas."),
-    ("Hojas-fecha con mNDVI705 fuera de rango fisico", n_qc_implausible,
+    ("Hojas-fecha con mNDVI705 fuera de rango físico", n_qc_implausible,
      "mNDVI705 < -0.05 o > 1.05: indicio de reflejo especular en la banda azul (445 nm), no una "
      "diferencia biologica real."),
 ]
@@ -182,10 +182,10 @@ st.divider()
 # ============================================================================
 st.subheader("3. Novedades y alerta de Telegram")
 st.caption(
-    "Compara los archivos actuales de `data/` contra la ultima verificacion y, si hay "
+    "Compara los archivos actuales de `data/` contra la última verificación y, si hay "
     "mediciones nuevas, permite avisar por Telegram — pero primero muestra una vista previa: "
     "nada sale sin que la revises. La identidad de cada archivo es su ruta relativa a `data/` "
-    "+ un hash de su contenido, asi que mover o clonar el proyecto no genera novedades falsas."
+    "+ un hash de su contenido, así que mover o clonar el proyecto no genera novedades falsas."
 )
 col_verif, col_reset = st.columns([2, 1])
 with col_verif:
@@ -205,7 +205,7 @@ if reset:
     save_last_run(current_keys)
     st.success(
         f"Listo: se marcaron {len(current_keys)} archivo(s) como vistos, sin enviar nada a "
-        "Telegram. La proxima verificacion solo avisara de lo que se agregue de aqui en adelante."
+        "Telegram. La próxima verificación solo avisará de lo que se agregue de aquí en adelante."
     )
 
 if verificar:
@@ -215,12 +215,12 @@ if verificar:
 
     if not previous_keys:
         st.info(
-            f"Primera verificacion: se registraron {len(current_keys)} archivo(s) como linea base. "
-            "La proxima vez que agregues mediciones, se te notificara solo lo nuevo."
+            f"Primera verificación: se registraron {len(current_keys)} archivo(s) como línea base. "
+            "La próxima vez que agregues mediciones, se te notificará solo lo nuevo."
         )
         save_last_run(current_keys)
     elif not new_keys:
-        st.info("No hay archivos nuevos desde la ultima verificacion.")
+        st.info("No hay archivos nuevos desde la última verificación.")
     else:
         new_paths = {k.rsplit("|", 1)[0] for k in new_keys}
         # Las claves nuevas guardan la ruta RELATIVA a data/ (ver src/state.py); el DataFrame
@@ -266,7 +266,7 @@ if st.session_state.get("preview_reportes") is not None:
                     st.session_state.pop(k, None)
                 st.rerun()
             else:
-                st.error(f"No se pudo enviar: {detalle}. El registro no se actualizo — se reintenta la proxima vez.")
+                st.error(f"No se pudo enviar: {detalle}. El registro no se actualizó — se reintenta la próxima vez.")
     with c_discard:
         if st.button("Descartar vista previa", width="stretch"):
             for k in ("preview_new_df", "preview_resumen", "preview_n_roya", "preview_reportes", "preview_current_keys"):
@@ -282,27 +282,27 @@ st.subheader("4. Glosario y navegacion")
 
 col_mapa, col_glosario = st.columns(2)
 with col_mapa:
-    st.markdown("**Que responde cada pagina**")
+    st.markdown("**Qué responde cada página**")
     st.markdown(
-        "- **Inicio** — que datos hay, su calidad, y novedades (esta pagina).\n"
-        "- **1. Espectros** — como se ve la reflectancia de estas hojas.\n"
-        "- **2. Indices Espectrales** — que indices separan hojas con roya de las que no.\n"
-        "- **3. Comparacion Especies** — como difieren las variedades entre si.\n"
-        "- **4. Severidad Roya** — que tan parecida es cada hoja madura a una hoja con roya, hoy.\n"
-        "- **5. Evolucion Temporal** — como cambia cada hoja fisica en el tiempo, y si es por "
+        "- **Inicio** — qué datos hay, su calidad, y novedades (esta página).\n"
+        "- **1. Espectros** — cómo se ve la reflectancia de estas hojas.\n"
+        "- **2. Índices espectrales** — qué índices separan hojas con roya de las que no.\n"
+        "- **3. Comparación de especies** — cómo difieren las variedades entre sí.\n"
+        "- **4. Estado de las hojas** — qué tan parecida es cada hoja madura a una hoja con roya, hoy.\n"
+        "- **5. Evolución Temporal** — cómo cambia cada hoja física en el tiempo, y si es por "
         "roya o por envejecimiento."
     )
 with col_glosario:
     st.markdown("**Terminos clave**")
     st.markdown(
-        "- **Hoja-fecha**: una hoja fisica (ej. Bourbon M1) en una campaña concreta. Es la "
-        "unidad de analisis: primero se promedian las repeticiones de cada punto, despues los "
-        "puntos (solo p1-p3), nunca se trata un punto o una repeticion como observacion "
+        "- **Hoja-fecha**: una hoja física (ej. Bourbon M1) en una campaña concreta. Es la "
+        "unidad de análisis: primero se promedian las repeticiones de cada punto, después los "
+        "puntos (solo p1-p3), nunca se trata un punto o una repetición como observación "
         "independiente.\n"
         "- **Tipo de hoja** (M/T/R/V): Madura, Tierna, Con roya, Vieja — ver la tabla de la "
-        "seccion 1. Madura/Tierna **no** son 'sanas', son de estado sanitario desconocido.\n"
-        "- **Similitud con roya**: que tan parecido es el espectro de una hoja al de una hoja "
+        "sección 1. Madura/Tierna **no** son 'sanas', son de estado sanitario desconocido.\n"
+        "- **Similitud con roya**: qué tan parecido es el espectro de una hoja al de una hoja "
         "con roya confirmada de su misma especie, frente a una hoja tierna sana. No es un "
         "diagnostico.\n"
-        "- **Control de calidad**: hojas-fecha marcadas por medicion dudosa (ver seccion 2)."
+        "- **Control de calidad**: hojas-fecha marcadas por medición dudosa (ver sección 2)."
     )

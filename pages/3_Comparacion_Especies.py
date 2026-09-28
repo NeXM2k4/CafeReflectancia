@@ -17,20 +17,20 @@ from src.parser import campaign_options, get_dataset, sorted_campaigns
 from src.stats_utils import compare_groups, summarize_indices
 from src.ui import filter_tag, index_column_config, inject_base_css, numeric_column_config, render_header, render_index_legend
 
-st.set_page_config(page_title="Comparacion entre especies", page_icon="🌱", layout="wide")
+st.set_page_config(page_title="Comparación entre especies", page_icon="🌱", layout="wide")
 inject_base_css()
-render_header("Comparacion entre Especies")
+render_header("Comparación entre Especies")
 st.caption(
     "Bourbon y Pacamara son las dos especies susceptibles a la roya: tienen muestras con roya "
-    "confirmada ademas de hojas Madura/Tierna/Vieja. **Canefora y Cuscatleco son controles sin "
-    "roya**: no tienen hojas con roya propias, asi que sirven para ver si un patron es propio de "
-    "la variedad o aparece igual en todas (ver Evolucion Temporal para el uso completo de estos "
+    "confirmada además de hojas Madura/Tierna/Vieja. **Canefora y Cuscatleco son controles sin "
+    "roya**: no tienen hojas con roya propias, así que sirven para ver si un patrón es propio de "
+    "la variedad o aparece igual en todas (ver Evolución Temporal para el uso completo de estos "
     "controles)."
 )
 
 df = get_dataset()
 if df.empty:
-    st.warning("No hay datos en `data/`. Ve a la pagina de inicio.")
+    st.warning("No hay datos en `data/`. Ve a la página de inicio.")
     st.stop()
 
 files_all, read_errors = file_index_table(df)
@@ -75,7 +75,7 @@ st.caption(f"**{LEAF_TYPE_LABELS[tipo]}** — {LEAF_TYPE_HELP[tipo]}")
 if tipo == "R":
     st.warning(
         "Cada especie susceptible tiene **una sola hoja con roya** en todo el dataset: esta "
-        "comparacion contrasta 1 hoja de Bourbon contra 1 de Pacamara, no una muestra "
+        "comparación contrasta 1 hoja de Bourbon contra 1 de Pacamara, no una muestra "
         "poblacional de cada variedad."
     )
 
@@ -96,7 +96,7 @@ render_index_legend(INDEX_DEFINITIONS)
 st.subheader(f"Resumen: diferencias entre especies en hojas {LEAF_TYPE_LABELS[tipo].lower()}")
 st.caption(
     "Mediana por especie, tamaño de efecto (si son 2 especies) y p ajustado por Holm entre "
-    "todos los indices."
+    "todos los índices."
 )
 if len(especies_presentes) < 2:
     st.info("Con los filtros actuales solo queda 1 especie con datos: no hay nada que comparar.")
@@ -107,7 +107,7 @@ else:
         color = {
             "Separa claramente los grupos": "#0CA30C",
             "Diferencia moderada": "#C98500",
-            "Diferencia debil (estadisticamente significativa, pero el solape es grande)": "#8A8A8A",
+            "Diferencia débil (estadísticamente significativa, pero el solape es grande)": "#8A8A8A",
             "No separa los grupos": "#7A7E85",
         }.get(v, "#7A7E85")
         return f"color: {color}; font-weight: 600"
@@ -117,7 +117,7 @@ else:
         width="stretch", column_config=numeric_column_config(resumen),
     )
 
-st.subheader("Distribucion por especie")
+st.subheader("Distribución por especie")
 cols = st.columns(2)
 for i, idx_name in enumerate(DISPLAY_INDICES):
     with cols[i % 2]:
@@ -140,7 +140,7 @@ with st.expander("📄 Datos: tabla por hoja-fecha y por punto"):
     cols_pt = ["species", "leaf", "campaign_id", "campaign_date", "point", "n_archivos", *DISPLAY_INDICES]
     st.dataframe(pts[cols_pt], width="stretch", hide_index=True, column_config=index_column_config(DISPLAY_INDICES))
 
-with st.expander("🔬 Detalle tecnico: Shapiro-Wilk, ANOVA/Tukey o Kruskal-Wallis/Dunn (sin correccion)"):
+with st.expander("🔬 Detalle técnico: Shapiro-Wilk, ANOVA/Tukey o Kruskal-Wallis/Dunn (sin corrección)"):
     for idx_name in DISPLAY_INDICES:
         with st.expander(idx_name, expanded=False):
             groups = {sp: ld.loc[ld["species"] == sp, idx_name].tolist() for sp in especies_presentes}
@@ -154,7 +154,7 @@ with st.expander("🔬 Detalle tecnico: Shapiro-Wilk, ANOVA/Tukey o Kruskal-Wall
             st.caption("Normalidad por grupo (Shapiro-Wilk):")
             st.dataframe(shapiro_df, width="stretch", column_config=numeric_column_config(shapiro_df))
             sig = "significativo ✅" if result["significant"] else "no significativo"
-            st.write(f"**{result['test_name']}**: estadistico = {result['stat']:.4f}, p = {result['p_value']:.4f} ({sig})")
+            st.write(f"**{result['test_name']}**: estadístico = {result['stat']:.4f}, p = {result['p_value']:.4f} ({sig})")
             if result["posthoc"] is not None:
                 st.caption(f"Post-hoc: {result['posthoc_name']}")
                 st.dataframe(result["posthoc"], width="stretch", column_config=numeric_column_config(result["posthoc"]))

@@ -3,8 +3,8 @@
 import pandas as pd
 import streamlit as st
 
-APP_TITLE = "Analisis de Reflectancia Foliar - Cafe"
-APP_SUBTITLE = "Bourbon, Canefora, Cuscatleco, Pacamara — deteccion de roya por espectroscopia"
+APP_TITLE = "Análisis de Reflectancia Foliar - Café"
+APP_SUBTITLE = "Bourbon, Canefora, Cuscatleco, Pacamara — detección de roya por espectroscopia"
 LOGO_EMOJI = "🍃"
 
 # Color de "tag" por tipo de filtro, consistente en las 4 paginas.
@@ -102,7 +102,7 @@ def numeric_column_config(df: pd.DataFrame, decimals: int = 4, exclude: tuple = 
 
 def render_index_legend(index_definitions: dict, expanded: bool = False):
     """Leyenda breve de que mide cada indice espectral."""
-    with st.expander("ℹ️ Que mide cada indice", expanded=expanded):
+    with st.expander("ℹ️ Qué mide cada índice", expanded=expanded):
         for name, desc in index_definitions.items():
             st.markdown(f"**{name}** — {desc}")
 

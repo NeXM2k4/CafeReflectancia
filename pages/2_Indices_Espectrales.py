@@ -17,13 +17,13 @@ from src.parser import campaign_options, get_dataset, sorted_campaigns
 from src.stats_utils import compare_groups, summarize_indices
 from src.ui import filter_tag, index_column_config, inject_base_css, numeric_column_config, render_header, render_index_legend
 
-st.set_page_config(page_title="Indices Espectrales", page_icon="🧪", layout="wide")
+st.set_page_config(page_title="Índices Espectrales", page_icon="🧪", layout="wide")
 inject_base_css()
-render_header("Indices Espectrales — que indices separan cada tipo de hoja")
+render_header("Índices Espectrales — qué índices separan cada tipo de hoja")
 
 df = get_dataset()
 if df.empty:
-    st.warning("No hay datos en `data/`. Ve a la pagina de inicio.")
+    st.warning("No hay datos en `data/`. Ve a la página de inicio.")
     st.stop()
 
 with st.sidebar:
@@ -63,8 +63,8 @@ n_r_hojas = files_sel.loc[files_sel["leaf_type"] == "R", "leaf"].nunique()
 if n_r_hojas:
     st.warning(
         f"**{species}** tiene {n_r_hojas} sola(s) hoja(s) con roya en todo el dataset. Todo lo "
-        "que se ve aqui para 'Con roya' describe esa(s) hoja(s) puntual(es), no una muestra "
-        "poblacional — ver la seccion de limitaciones en Evolucion Temporal."
+        "que se ve aquí para 'Con roya' describe esa(s) hoja(s) puntual(es), no una muestra "
+        "poblacional — ver la sección de limitaciones en Evolución Temporal."
     )
 
 ld = leaf_date_table(files_sel)  # unidad de analisis: hoja-fecha (solo p1-p3)
@@ -76,11 +76,11 @@ render_index_legend(INDEX_DEFINITIONS)
 for code in tipos_presentes:
     st.caption(f"**{LEAF_TYPE_LABELS[code]}** — {LEAF_TYPE_HELP[code]}")
 
-st.subheader("Resumen: que indices separan cada tipo de hoja")
+st.subheader("Resumen: qué índices separan cada tipo de hoja")
 st.caption(
-    "Cada fila es un indice; cada columna 'n' y 'Mediana' es un tipo de hoja. Con 2 tipos de "
-    "hoja se usa Mann-Whitney U + tamaño de efecto (δ de Cliff, -1 a +1); con 3 o mas, "
-    "Kruskal-Wallis. El p se ajusta por Holm entre todos los indices de esta tabla."
+    "Cada fila es un índice; cada columna 'n' y 'Mediana' es un tipo de hoja. Con 2 tipos de "
+    "hoja se usa Mann-Whitney U + tamaño de efecto (δ de Cliff, -1 a +1); con 3 o más, "
+    "Kruskal-Wallis. El p se ajusta por Holm entre todos los índices de esta tabla."
 )
 
 if len(tipos_presentes) < 2:
@@ -92,7 +92,7 @@ else:
         color = {
             "Separa claramente los grupos": "#0CA30C",
             "Diferencia moderada": "#C98500",
-            "Diferencia debil (estadisticamente significativa, pero el solape es grande)": "#8A8A8A",
+            "Diferencia débil (estadísticamente significativa, pero el solape es grande)": "#8A8A8A",
             "No separa los grupos": "#7A7E85",
         }.get(v, "#7A7E85")
         return f"color: {color}; font-weight: 600"
@@ -103,7 +103,7 @@ else:
         column_config=numeric_column_config(resumen, decimals=4),
     )
 
-st.subheader("Distribucion por tipo de hoja (una hoja-fecha por punto)")
+st.subheader("Distribución por tipo de hoja (una hoja-fecha por punto)")
 cols = st.columns(2)
 for i, idx_name in enumerate(DISPLAY_INDICES):
     with cols[i % 2]:
@@ -116,7 +116,7 @@ for i, idx_name in enumerate(DISPLAY_INDICES):
         st.plotly_chart(fig, width="stretch")
 
 with st.expander("📄 Datos: tablas por hoja-fecha, por punto y detalle sin promediar"):
-    st.markdown("**Hoja-fecha** (unidad de analisis de arriba): media de los puntos de esa hoja en esa campaña.")
+    st.markdown("**Hoja-fecha** (unidad de análisis de arriba): media de los puntos de esa hoja en esa campaña.")
     cols_hd = ["species", "leaf", "Tipo de hoja", "campaign_id", "campaign_date", "n_puntos", "n_archivos", *DISPLAY_INDICES]
     st.dataframe(ld_display[cols_hd], width="stretch", hide_index=True, column_config=index_column_config(DISPLAY_INDICES))
     st.download_button(
@@ -131,7 +131,7 @@ with st.expander("📄 Datos: tablas por hoja-fecha, por punto y detalle sin pro
     cols_pt = ["species", "leaf", "Tipo de hoja", "campaign_id", "campaign_date", "point", "n_archivos", *DISPLAY_INDICES]
     st.dataframe(pts_display[cols_pt], width="stretch", hide_index=True, column_config=index_column_config(DISPLAY_INDICES))
 
-    st.markdown("**Detalle sin promediar** (una fila por medicion individual, incluye FSR y puntos p4+):")
+    st.markdown("**Detalle sin promediar** (una fila por medición individual, incluye FSR y puntos p4+):")
     cols_detalle = ["species", "leaf", "leaf_type", "campaign_id", "campaign_date", "point", "repetition", "filename", *list(INDEX_DEFINITIONS)]
     st.dataframe(files_sp[files_sp["leaf_type"].isin(sel_tipos)][cols_detalle], width="stretch", hide_index=True,
                  column_config=index_column_config(list(INDEX_DEFINITIONS)))
@@ -141,11 +141,11 @@ with st.expander("📄 Datos: tablas por hoja-fecha, por punto y detalle sin pro
         file_name=f"indices_{species.lower()}_detalle.csv", mime="text/csv", icon="⬇️",
     )
 
-with st.expander("🔬 Detalle tecnico: Shapiro-Wilk, ANOVA/Tukey o Kruskal-Wallis/Dunn (sin correccion, por hoja-fecha)"):
+with st.expander("🔬 Detalle técnico: Shapiro-Wilk, ANOVA/Tukey o Kruskal-Wallis/Dunn (sin corrección, por hoja-fecha)"):
     st.caption(
         "Mismo pipeline que antes de esta reescritura, ahora sobre hoja-fecha en vez de puntos "
-        "individuales. Sin correccion por comparaciones multiples entre indices (para eso, la "
-        "tabla resumen de arriba). Util para ver la normalidad y el post-hoc completo por par."
+        "individuales. Sin corrección por comparaciones múltiples entre índices (para eso, la "
+        "tabla resumen de arriba). Útil para ver la normalidad y el post-hoc completo por par."
     )
     for idx_name in DISPLAY_INDICES:
         with st.expander(idx_name, expanded=False):
@@ -163,7 +163,7 @@ with st.expander("🔬 Detalle tecnico: Shapiro-Wilk, ANOVA/Tukey o Kruskal-Wall
             st.caption("Normalidad por grupo (Shapiro-Wilk):")
             st.dataframe(shapiro_df, width="stretch", column_config=numeric_column_config(shapiro_df))
             sig = "significativo ✅" if result["significant"] else "no significativo"
-            st.write(f"**{result['test_name']}**: estadistico = {result['stat']:.4f}, p = {result['p_value']:.4f} ({sig})")
+            st.write(f"**{result['test_name']}**: estadístico = {result['stat']:.4f}, p = {result['p_value']:.4f} ({sig})")
             if result["posthoc"] is not None:
                 st.caption(f"Post-hoc: {result['posthoc_name']}")
                 st.dataframe(result["posthoc"], width="stretch", column_config=numeric_column_config(result["posthoc"]))

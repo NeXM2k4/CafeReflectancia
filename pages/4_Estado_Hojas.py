@@ -18,9 +18,7 @@ import streamlit as st
 
 from src.config import (
     INDEX_DEFINITIONS,
-    LEAF_TYPE_COLORS,
     LEAF_TYPE_LABELS,
-    RUST_RISK_CLASSES,
     rust_risk_class,
 )
 from src.indices import DISPLAY_INDICES, file_index_table, leaf_date_table
@@ -35,15 +33,15 @@ inject_base_css()
 render_header("Estado de las hojas — similitud espectral con roya, hoja por hoja y fecha")
 
 st.caption(
-    "**Similitud con roya** (0-100 %): que tan parecido es el espectro de una hoja al de la "
+    "**Similitud con roya** (0-100 %): qué tan parecido es el espectro de una hoja al de la "
     "hoja con roya confirmada de su misma especie, frente a una hoja tierna sana de referencia. "
     "**No es un diagnostico.** Se calcula sobre hojas **Madura**, que son las de estado "
-    "sanitario desconocido — es justo lo que esta pagina trata de estimar."
+    "sanitario desconocido — es justo lo que esta página trata de estimar."
 )
 
 df = get_dataset()
 if df.empty:
-    st.warning("No hay datos en `data/`. Ve a la pagina de inicio.")
+    st.warning("No hay datos en `data/`. Ve a la página de inicio.")
     st.stop()
 
 with st.sidebar:
@@ -84,7 +82,7 @@ n_r_hojas = sim.loc[sim["leaf_type"] == "R", "leaf"].nunique()
 if n_r_hojas:
     st.info(
         f"Hay {n_r_hojas} hoja(s) con roya por especie en todo el dataset: la referencia 'con "
-        "roya' de abajo describe a esa(s) hoja(s) puntual(es), no una poblacion."
+        "roya' de abajo describe a esa(s) hoja(s) puntual(es), no una población."
     )
 
 render_index_legend(INDEX_DEFINITIONS)
@@ -121,7 +119,7 @@ for sp in sel_species:
     )
 
 # ---------- 2. Detalle por hoja y fecha ----------
-st.subheader("2. Detalle: indices de una hoja en una fecha, contra sus referencias")
+st.subheader("2. Detalle: índices de una hoja en una fecha, contra sus referencias")
 c1, c2, c3 = st.columns(3)
 with c1:
     especie_det = st.selectbox("Especie", sel_species, key="det_especie")
@@ -158,14 +156,14 @@ else:
         ref_df, width="stretch",
         column_config={c: st.column_config.NumberColumn(c, format="%.3f") for c in ref_df.columns},
     )
-    st.caption(f"n = {fila['n_puntos']} punto(s) medidos esa fecha; similitud calculada con {fila['similitud_n_indices']}/{len(DISPLAY_INDICES)} indices comparables.")
+    st.caption(f"n = {fila['n_puntos']} punto(s) medidos esa fecha; similitud calculada con {fila['similitud_n_indices']}/{len(DISPLAY_INDICES)} índices comparables.")
 
 # ---------- 3. Tabla completa + descarga ----------
 with st.expander("📄 Tabla completa (todas las hojas, todas las fechas)"):
     cols = ["species", "leaf", "Tipo de hoja", "campaign_date", "n_puntos", "similitud", "similitud_n_indices", *DISPLAY_INDICES]
     tabla = sim[cols].copy()
     tabla["similitud"] = (tabla["similitud"] * 100).round(1)
-    tabla = tabla.rename(columns={"similitud": "Similitud (%)", "similitud_n_indices": "n indices"})
+    tabla = tabla.rename(columns={"similitud": "Similitud (%)", "similitud_n_indices": "n índices"})
     st.dataframe(
         tabla, width="stretch", hide_index=True,
         column_config={"Similitud (%)": st.column_config.ProgressColumn("Similitud (%)", min_value=0, max_value=100, format="%.0f%%")},
