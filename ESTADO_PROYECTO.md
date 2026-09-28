@@ -2,6 +2,17 @@
 
 Última actualización: 2026-09-27
 
+> ⚠️ **Aviso (2026-09-28):** este documento describe la app **antes** de la sesión de pulido de
+> `plan_mejora_app.md` (rama `mejora-app`). Muchas secciones de abajo ya no son exactas —
+> páginas renombradas (`4_Severidad_Roya.py` → `4_Estado_Hojas.py`), FSR quitado de las vistas
+> activas, la escala de riesgo pasó de 11 a 4 clases, las anclas de severidad se recalculan
+> distinto (por fecha, no por archivo), Telegram pasó a español, y hay un módulo nuevo
+> (`src/indices.py`) que centraliza los cálculos que antes describía este documento repartidos
+> por página. **La referencia vigente de esa sesión es `PROGRESO_MEJORA_APP.md`** (qué se hizo,
+> por qué, y qué quedó pendiente). Este archivo se reescribirá una vez cerrada esa fase
+> (`plan_mejora_app.md` F5.3: separar bitácora histórica de referencia vigente); hasta entonces,
+> tratá las secciones 6-9 y 13-14 como historia, no como el comportamiento actual del código.
+
 Este documento resume qué es el proyecto, cómo está construido, qué se hizo en la sesión de trabajo hasta ahora, y qué queda pendiente. El objetivo es que cualquiera (vos en una sesión futura, u otra persona) pueda retomarlo sin tener que releer todo el historial de conversación.
 
 ## 1. Qué es este proyecto
@@ -84,7 +95,7 @@ logic/
 requirements.txt
 ```
 
-**Nota:** hay una carpeta `roya/` en la raíz que es un virtualenv de Python (contiene `Lib/site-packages/...`). No está en `.gitignore` todavía. Si en algún momento se inicializa un repo git en este proyecto (actualmente **no** es un repo git), hay que agregar `roya/` al `.gitignore` antes del primer commit para no versionar el entorno virtual completo.
+**Nota (actualizada 2026-09-28):** hay una carpeta `roya/` en la raíz que es un virtualenv de Python (contiene `Lib/site-packages/...`). El proyecto **sí es un repo git** desde julio de 2026, y `roya/` **sí está en `.gitignore`** (junto con `.state/`, `.streamlit/secrets.toml`, `__pycache__/`). Esta nota queda como referencia histórica de una duda ya resuelta.
 
 ## 4. Convención de nombres de archivos y carpetas (clave para entender todo el parser)
 
@@ -240,9 +251,9 @@ Notas:
   agregaron ninguno): 3 `araña*.txt` (Bourbon, campaña `Campaña_10_08`), 1 `vieja1.txt` (bucket
   pendiente, campaña `Campaña_07_09`) y 1 `prueba_adri.txt` preexistente (Pacamara No susceptible,
   se filtra antes de llegar a la UI).
-- **`Campaña_14_09` y `Campaña_21_09` aún no están commiteadas a git** (`git status` las muestra
-  como untracked al 2026-09-27) — el dashboard ya las analiza porque lee del disco, pero si se
-  quiere que el repo remoto las tenga hay que agregarlas y commitearlas aparte.
+- ~~`Campaña_14_09` y `Campaña_21_09` aún no están commiteadas a git~~ — resuelto: quedaron
+  commiteadas en `913923c` (":zap: add more data and campaigns"), antes de la sesión de pulido
+  del 2026-09-28.
 
 ## 6. Módulos de código — qué hace cada uno
 
@@ -453,8 +464,6 @@ Ajustes de formato del 2026-08-02 (a pedido del usuario):
   equipo de campo; siguen agrupados bajo `SPECIES_PENDING_LABEL`. Cuando se confirme la especie,
   reclasificar (renombrar o mover de carpeta) y correr `Recargar datos` — no hace falta tocar
   código.
-- **`Campaña_14_09` y `Campaña_21_09` sin commitear a git.** El dashboard ya las analiza (lee del
-  disco), pero el repo remoto no las tiene todavía — agregar y commitear cuando se decida.
 - **Archivos `araña*.txt` sin explicación.** 3 archivos en `Campaña_10_08/Bourbon/roya/` no
   siguen ningún patrón conocido. El usuario pidió ignorarlos por ahora; quedan como "no
   reconocidos" en el dataset. Aclarar qué representan (¿otra plaga?) y decidir si hay que
@@ -483,11 +492,15 @@ Ajustes de formato del 2026-08-02 (a pedido del usuario):
 
 **Anteriores:**
 
-- **Definir si `FSR` debe usar bandas distintas a NDVI** (actualmente son las mismas 800/670, dando el mismo valor numérico que NDVI — puede que el usuario quiera otras longitudes de onda para que aporte información nueva).
+- ~~Definir si `FSR` debe usar bandas distintas a NDVI~~ — resuelto el 2026-09-28 (X8 de
+  `plan_mejora_app.md`): en vez de redefinir sus bandas, `FSR` se **quitó** de las vistas activas
+  (paginas 1-5, Telegram, `src.stats_utils`), la estadistica y la similitud con roya —
+  `src.indices.DISPLAY_INDICES` es la lista de 7 indices que usan. `calcular_indices()` sigue
+  calculando FSR por compatibilidad (identico a NDVI), pero nada nuevo lo muestra ni lo usa.
 - **Etiquetado final de enfermedad**: el usuario mencionó en su momento que se vería más adelante ("luego podemos ver lo de las etiquetas finales") — por ahora el etiquetado real que existe es `health_status` (Sana/Con roya) derivado del prefijo R del nombre de archivo, ya incorporado. Confirmar si esto es lo que se consideraba "etiquetado final" o si falta algo más granular (ej. severidad/grado de roya).
 - **Canefora y Cuscatleco todavía no tienen muestras con roya real.** Vuelve a ser un pendiente activo desde el 2026-09-11: estuvo "resuelto" (sin efecto) entre el 2026-08-03 y el 2026-09-11 solo porque ambas especies estaban excluidas del dataset, no porque el problema se haya resuelto de fondo. Hoy ambas especies están de nuevo en el dashboard (sección 1) pero siguen sin roya propia, así que su score de severidad usa la referencia estimada (sección 9). Si se muestrean hojas con roya para estas especies, la app las reconoce sin cambios de código (mismo patrón `R{n}p{punto}`) y el score pasa a usar su ancla propia automáticamente.
 - **Susceptibilidad en subcarpetas nuevas**: en `roya_27_07_2026/Pacamara/Roya/` las hojas con roya quedan con `susceptibility=NaN` porque la subcarpeta se llama `Roya` en vez de indicar Susceptible/No_susceptible. Biológicamente son susceptibles; si se decide inferir susceptibilidad automática para la subcarpeta `Roya` (o exigir doble anidamiento `Susceptible/Roya`), hay que ajustar `_discover_records()`.
-- Si se decide inicializar git en el proyecto, agregar `roya/` (virtualenv en la raíz) al `.gitignore` antes del primer commit.
+- ~~Si se decide inicializar git en el proyecto, agregar `roya/` al `.gitignore`~~ — resuelto, ver nota de la sección 3.
 - Considerar si la comparación estadística de "Sana vs Con roya" debería hacerse a nivel de **hoja** (promediando los 3 puntos de cada hoja primero) en vez de a nivel de **punto**, para evitar pseudo-réplicas (puntos de la misma hoja no son observaciones totalmente independientes). Se dejó el comportamiento existente (comparación a nivel de punto-hoja).
 - **Documentar rangos observados vs. literatura** para cada índice en la UI (ver `ESTADO_ROYA.md` sección "Rangos observados y por qué se salen de la 'norma' de blog"): los índices no normalizados (RCI) escalan con la reflectancia en 0–100% del SpectraSuite y por eso salen valores muy por encima de los "0 a 1" que dicen los blogs genéricos.
 

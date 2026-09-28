@@ -2,6 +2,15 @@
 
 Última actualización: 2026-09-11
 
+> ⚠️ **Desactualizado (2026-09-28):** este documento describe el pipeline **antes** de
+> `plan_mejora_app.md`. Cambios desde entonces: las anclas se calculan sobre la tabla
+> hoja-fecha (ponderando cada fecha por igual y excluyendo hojas-fecha marcadas por control de
+> calidad) en `src/severity.py::severity_baselines()`, no en `app.py`; son **7 índices activos**
+> (FSR se quitó, ver `src.indices.DISPLAY_INDICES`); la escala de riesgo tiene **4 clases**, no
+> 11 (`config.RUST_RISK_CLASSES`); y la alerta de Telegram se envía en **español**. El ejemplo
+> de la sección 6 todavía muestra CARI, que se eliminó en 2026-08-02. Ver `PROGRESO_MEJORA_APP.md`
+> para el detalle de cada cambio; este documento se actualizará cuando se cierre esa fase.
+
 ## 1. Punto de partida: los 8 índices
 
 No hay un índice único que determine si una hoja está sana o enferma. La app parte de los 8 índices espectrales que ya calcula por archivo, en `calcular_indices()` (`src/processing.py`):

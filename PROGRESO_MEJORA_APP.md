@@ -3,7 +3,30 @@
 Inicio: 2026-09-28. Ejecutando `plan_mejora_app.md` fase por fase mientras el usuario está fuera.
 Este archivo se actualiza en cada paso: qué se hizo, qué se decidió y qué falta.
 
-**Rama de trabajo:** `mejora-app` (se crea en F0.1 para no tocar `main` directo).
+**Rama de trabajo:** `mejora-app` (se crea en F0.1 para no tocar `main` directo). **No se hizo
+merge a `main`** — queda para que el usuario revise el diff y decida.
+
+## Resumen de cierre (para leer primero)
+
+**Hecho:** F0 completo (incluye un arreglo urgente: el registro de Telegram estaba
+desactualizado desde julio y el primer click iba a generar ~1800 "novedades" falsas — resuelto
+y el flujo pasa ahora por una vista previa obligatoria antes de enviar nada). F1 completo
+(módulo único de índices, similitud y estadística). F2 completo en Inicio, páginas 1, 2, 3 y 4;
+página 5 recibió solo un cambio dirigido (ver su nota) por riesgo/beneficio. F3 completo
+(Telegram en español, 4 clases, sin FSR). F4 cubierto de forma incidental dentro de F2. F5
+parcial (README nuevo, avisos de desactualización; falta `METODOLOGIA.md`). F6 completo con un
+hallazgo sin resolver (ver su nota, requiere navegador real).
+
+**Bugs reales encontrados y corregidos durante la verificación** (no estaban en el diagnóstico
+original del plan): el ancla de similitud para RCI en Pacamara seguía inflada por el mismo
+problema ya documentado en `ESTADO_PROYECTO.md` (ahora corregido automáticamente); y la similitud
+que vería Telegram no coincidía numéricamente con la de las páginas 4/5 para la misma hoja-fecha
+(orden de operaciones distinto) — corregido y verificado con diferencia 0.0 en las 191
+hojas-fecha del dataset.
+
+**8 commits** en la rama sobre `main` (uno de ellos el checkpoint inicial con trabajo previo a
+esta sesión), cada fase con su propio commit (`git log main..mejora-app`). Falta este último
+commit de cierre. 6/6 pruebas de humo pasan en el estado final.
 
 ## Decisiones D1–D7 (tomadas por mí, siguiendo mis propias recomendaciones del plan,
 porque el usuario está fuera y pidió avanzar con todas las fases; quedan documentadas
@@ -38,13 +61,67 @@ para que las revise al volver — cualquiera se puede deshacer)
 - [x] F2 — página 1 (Espectros)
 - [~] F2 — página 5 (Evolución temporal) — parcial, ver nota
 - [x] F3 — alerta de Telegram
-- [ ] F4 — textos, ayuda y glosario
-- [ ] F5 — documentación del repo
-- [ ] F6 — verificación final
+- [~] F4 — textos, ayuda y glosario (mayormente cubierto dentro de F2, ver nota)
+- [~] F5 — documentación del repo (README nuevo + avisos de desactualización; METODOLOGIA.md pendiente)
+- [x] F6 — verificación final
 
 (Se marca [x] y se agrega una nota corta a medida que se completa cada ítem, más abajo.)
 
 ## Notas detalladas por tarea
+
+### F4 — Textos, ayuda y glosario
+No se hizo como fase separada: cada pagina reescrita en F2 ya incorporo su propio "como leer
+esta pagina" (captions al inicio, avisos de n=1 hoja con roya, notas de que NO se puede
+concluir) y el glosario central quedo en Inicio (seccion 4), con enlaces conceptuales desde las
+demas paginas. **No hecho:** una revision ortografica pasada por **todas** las paginas
+(tildes/mayusculas consistentes) — las paginas reescritas (Inicio, 1-4) usan tildes en el texto
+nuevo; la pagina 5 ya las tenia. `src/ui.py` y algunos textos viejos de las paginas 1-4 que no
+se tocaron directamente pueden seguir sin tildes en frases sueltas.
+
+### F5 — Documentacion del repo
+- **Hecho:** `README.md` nuevo (no existia) con como correr la app, que responde cada pagina,
+  el flujo de agregar una campaña, la estructura del repo y las limitaciones centrales.
+- **Hecho:** avisos de desactualizacion agregados al inicio de `ESTADO_PROYECTO.md` y
+  `ESTADO_ROYA.md`, mas correcciones puntuales de las afirmaciones ya falsas (repo git, `roya/`
+  en `.gitignore`, campañas sin commitear, pendiente de FSR resuelto por eliminacion en vez de
+  redefinicion).
+- **Hecho:** comentario desactualizado en `src/processing.py` (`_severity_baselines()` en
+  `app.py` → ahora `severity_baselines()` en `src/severity.py`).
+- **No hecho (queda pendiente):** `METODOLOGIA.md` como fuente unica de verdad del metodo
+  (F5.2) — es la pieza que faltaria para que el paper (`plan_mejora_paper.md`) pueda apoyarse en
+  ella directamente. Tampoco se separo la bitacora historica de `ESTADO_PROYECTO.md` en un
+  `docs/bitacora.md` (F5.3): se opto por el aviso al inicio como paso intermedio menos
+  arriesgado dado el tiempo disponible.
+
+### F6 — Verificacion final
+- **Pruebas de humo:** 6/6 pasan de forma consistente en cada fase (se corrieron ~15 veces
+  durante la sesion, siempre en verde antes de cada commit).
+- **Combinaciones de filtros:** las 4 especies probadas en las paginas 1-4 por separado (16
+  combinaciones, 14 aplicables — Canefora/Cuscatleco no aplican en la pagina 4 por diseño, eso
+  es correcto) + casos limite especificos (un solo tipo de hoja, una sola campaña, seleccion de
+  hoja R, "sin recorte" con la similitud unificada): **0 excepciones reales** en todos los casos.
+- **Coherencia numerica:** verificada explicitamente en 3 puntos (F1.1/F1.2 vs. el codigo viejo,
+  F1.3 vs. el ancla vieja de RCI, y X5 entre `leaf_date_similarity`/`leaf_severity_reports`/
+  pagina 5) — todas con diferencia 0.0 tras las correcciones.
+- **Rendimiento:** con la cache en disco de `file_index_table` calentada, Inicio y las paginas
+  1-4 cargan en 0.5-3.6 s desde un proceso nuevo. La pagina 5 tarda ~13-17 s en frio (calcula
+  tendencias espectrales y espectros medios que no tienen cache en disco, solo `st.cache_data`
+  en memoria) pero baja a ~6 s al cambiar de especie **dentro de la misma sesion** ya calentada.
+  No se optimizo mas alla de eso: agregar cache en disco a esos calculos tambien queda como
+  posible mejora futura si se vuelve molesto en uso real.
+- **Hallazgo sin resolver, para investigar con calma:** al simular 3 interacciones seguidas en
+  el mismo `AppTest` de la pagina 5 (cambiar especie dos veces), la tercera interaccion lanzo un
+  `KeyError` de Streamlit sobre una key de `session_state` de un widget (`toggle`) que no
+  aparecio en las pruebas normales (una sola interaccion por instancia, que es como se probo el
+  resto de la sesion). Puede ser una particularidad del arnes de pruebas `AppTest` con widgets
+  condicionales, o una señal real de un problema de `session_state` en la pagina 5 al navegar
+  mucho sin recargar. **Recomendacion:** probar la pagina 5 en un navegador real cambiando de
+  especie varias veces seguidas (esto ya estaba pendiente desde `evoluciontemporal.md`: nunca se
+  probo en un navegador real, solo con `AppTest` de una interaccion por corrida).
+- **No verificado:** la app en un navegador real (Chrome no respondio en la sesion anterior,
+  segun `evoluciontemporal.md`; no se reintento aqui por no tener acceso a la extension en esta
+  sesion). Todo lo de arriba es via `AppTest` (ejecuta el script real de Streamlit sin
+  navegador) y pruebas de consistencia numerica directas.
 
 ### F3 — Alerta de Telegram (D1 español, F3.1, F3.2, F3.3, F3.5)
 `src/notifier.py` reescrito en español (antes en ingles, ver D1). Cambios:
