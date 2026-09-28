@@ -4,7 +4,7 @@ import pandas as pd
 import streamlit as st
 
 APP_TITLE = "Analisis de Reflectancia Foliar - Cafe"
-APP_SUBTITLE = "Bourbon · Pacamara — deteccion de roya por espectroscopia"
+APP_SUBTITLE = "Bourbon, Canefora, Cuscatleco, Pacamara — deteccion de roya por espectroscopia"
 LOGO_EMOJI = "🍃"
 
 # Color de "tag" por tipo de filtro, consistente en las 4 paginas.
