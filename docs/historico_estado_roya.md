@@ -9,7 +9,7 @@
 > (FSR se quitó, ver `src.indices.DISPLAY_INDICES`); la escala de riesgo tiene **4 clases**, no
 > 11 (`config.RUST_RISK_CLASSES`); y la alerta de Telegram se envía en **español**. El ejemplo
 > de la sección 6 todavía muestra CARI, que se eliminó en 2026-08-02. Ver `PROGRESO_MEJORA_APP.md`
-> para el detalle de cada cambio; este documento se actualizará cuando se cierre esa fase.
+> para el detalle de cada cambio; **el método vigente está en `../METODOLOGIA.md` §5** (F5.4 hecho). Este archivo se conserva solo por la sección 9 (rangos observados vs. literatura) y como historia.
 
 ## 1. Punto de partida: los 8 índices
 

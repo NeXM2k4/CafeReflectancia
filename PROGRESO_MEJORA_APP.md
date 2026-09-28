@@ -8,25 +8,40 @@ merge a `main`** — queda para que el usuario revise el diff y decida.
 
 ## Resumen de cierre (para leer primero)
 
-**Hecho:** F0 completo (incluye un arreglo urgente: el registro de Telegram estaba
-desactualizado desde julio y el primer click iba a generar ~1800 "novedades" falsas — resuelto
-y el flujo pasa ahora por una vista previa obligatoria antes de enviar nada). F1 completo
-(módulo único de índices, similitud y estadística). F2 completo en Inicio, páginas 1, 2, 3 y 4;
-página 5 recibió solo un cambio dirigido (ver su nota) por riesgo/beneficio. F3 completo
-(Telegram en español, 4 clases, sin FSR). F4 cubierto de forma incidental dentro de F2. F5
-parcial (README nuevo, avisos de desactualización; falta `METODOLOGIA.md`). F6 completo con un
-hallazgo sin resolver (ver su nota, requiere navegador real).
+**Estado: plan completo (2026-09-28, segunda sesión tras el corte de luz).** Todo F0–F6 hecho; lo
+único que no se pudo hacer desde aquí es la prueba en un navegador real (la extensión de Chrome no
+respondió en dos intentos): queda como paso manual en `DEPLOY.md` §D.
 
-**Bugs reales encontrados y corregidos durante la verificación** (no estaban en el diagnóstico
-original del plan): el ancla de similitud para RCI en Pacamara seguía inflada por el mismo
-problema ya documentado en `ESTADO_PROYECTO.md` (ahora corregido automáticamente); y la similitud
-que vería Telegram no coincidía numéricamente con la de las páginas 4/5 para la misma hoja-fecha
-(orden de operaciones distinto) — corregido y verificado con diferencia 0.0 en las 191
-hojas-fecha del dataset.
+**Primera sesión:** F0 (incluye el arreglo urgente del registro de Telegram: el primer clic iba a
+generar ~1800 novedades falsas), F1 (módulo único de índices, similitud y estadística), F2 en Inicio
+y páginas 1–4, F3 (Telegram en español, 4 clases, sin FSR), F5 parcial y F6.
 
-**9 commits** en la rama sobre `main` (uno de ellos el checkpoint inicial con trabajo previo a
-esta sesión), cada fase con su propio commit (`git log main..mejora-app`). 6/6 pruebas de humo
-pasan en el estado final. `main` queda intacto — nada de esto se fusionó.
+**Segunda sesión (cierre):**
+- Página 5 reorganizada en **5 pestañas** (Resumen · Hojas maduras · ¿Roya o edad? · Detalle por
+  hoja · Datos y calidad) y los helpers de gráficos movidos a `src/temporal_plots.py`. Lenguaje
+  llano (glosario plegable; "Cambio corregido por hojas T (Δ*)"; "Similitud relativa con roya").
+- Todos los widgets de la página 5 tienen `key` explícita. El `KeyError` de `session_state` no se
+  reproduce con 6 interacciones encadenadas; queda cubierto por `tests/test_page5_interactions.py`.
+- `METODOLOGIA.md` escrito (F5.2). `ESTADO_PROYECTO.md` reescrito corto; el viejo pasó a
+  `docs/bitacora.md` (F5.3) y `ESTADO_ROYA.md` a `docs/historico_estado_roya.md` (F5.4).
+- Revisión ortográfica de textos de Inicio, páginas 1–4, Telegram, `config.py` y `ui.py` (F4).
+- Telegram: las tarjetas de referencia (T/R) ya no dicen a la vez "no requiere acción" y "revisar";
+  avisan si una T sale alta o una R sale baja (medición dudosa o hoja que ya maduró).
+- Rendimiento: caché en disco de los espectros medios (`.state/spectra_cache/`): la página 5 baja de
+  ~17 s a ~8,5 s desde un proceso nuevo.
+- Imports sin uso eliminados; `DEPLOY.md` con el paso a paso para publicar y desplegar.
+
+**Bugs reales encontrados y corregidos durante la verificación:** ancla de RCI en Pacamara inflada
+por la medición fallida del 10/08 (ahora se corrige sola por fecha + control de calidad), y la
+similitud de Telegram no coincidía con la de las páginas 4/5 (orden de operaciones distinto; ahora
+diferencia 0,0 en las 191 hojas-fecha).
+
+**Hallazgo a tener presente:** con el ancla sana "todas las hojas T", una hoja tierna medida semanas
+después (p. ej. Pacamara T1 el 21/07, 50 %) sale con similitud media porque ya maduró. Es la
+razón por la que la página 5 usa S1 (primeras 2 campañas) como ancla principal.
+
+**Pruebas:** 7/7 pasan (6 de humo + interacciones repetidas de la página 5). `main` no se tocó:
+el merge queda para el usuario (`DEPLOY.md` §A).
 
 ## Decisiones D1–D7 (tomadas por mí, siguiendo mis propias recomendaciones del plan,
 porque el usuario está fuera y pidió avanzar con todas las fases; quedan documentadas
@@ -55,14 +70,14 @@ para que las revise al volver — cualquiera se puede deshacer)
 - [x] F1.5 — etiquetas y colores únicos
 - [x] F1.6 — control de calidad extendido a valores imposibles
 - [x] F2 — Inicio
-- [ ] F2 — página 2 (Índices)
-- [ ] F2 — página 3 (Especies)
+- [x] F2 — página 2 (Índices)
+- [x] F2 — página 3 (Especies)
 - [x] F2 — página 4 (Estado de las hojas)
 - [x] F2 — página 1 (Espectros)
-- [~] F2 — página 5 (Evolución temporal) — parcial, ver nota
+- [x] F2 — página 5 (Evolución temporal) — 5 pestañas + módulo de gráficos
 - [x] F3 — alerta de Telegram
-- [~] F4 — textos, ayuda y glosario (mayormente cubierto dentro de F2, ver nota)
-- [~] F5 — documentación del repo (README nuevo + avisos de desactualización; METODOLOGIA.md pendiente)
+- [x] F4 — textos, ayuda y glosario
+- [x] F5 — documentación del repo (README, METODOLOGIA.md, ESTADO_PROYECTO.md, docs/)
 - [x] F6 — verificación final
 
 (Se marca [x] y se agrega una nota corta a medida que se completa cada ítem, más abajo.)
@@ -70,6 +85,8 @@ para que las revise al volver — cualquiera se puede deshacer)
 ## Notas detalladas por tarea
 
 ### F4 — Textos, ayuda y glosario
+*(Actualización de la segunda sesión: la revisión ortográfica pendiente ya se hizo, ver el resumen de cierre. Lo de abajo es la nota de la primera sesión.)*
+
 No se hizo como fase separada: cada pagina reescrita en F2 ya incorporo su propio "como leer
 esta pagina" (captions al inicio, avisos de n=1 hoja con roya, notas de que NO se puede
 concluir) y el glosario central quedo en Inicio (seccion 4), con enlaces conceptuales desde las
@@ -141,7 +158,7 @@ se tocaron directamente pueden seguir sin tildes en frases sueltas.
   en si misma", lo que puede leerse contradictorio a primera vista. Cosmetico, no afecta los
   numeros.
 
-### F2 — página 5: hecho parcialmente (decision razonada, no fue solo falta de tiempo)
+### F2 — página 5: nota de la primera sesión (la reorganización en pestañas se completó en la segunda) (decision razonada, no fue solo falta de tiempo)
 La pagina 5 (1244 lineas) es la mas grande y la mejor probada del proyecto (`evoluciontemporal.md`
 documenta rondas previas de test con AppTest y 15 combinaciones de filtros). Reescribirla
 completa a pestañas + mover ~400 lineas de helpers a un modulo es una transformacion mecanica

@@ -54,11 +54,12 @@ app.py                    # Inicio: inventario, calidad de datos, alerta
 pages/                    # 1-5, ver tabla de arriba
 src/
   parser.py                 # descubre y parsea los .txt de data/
-  processing.py              # suavizado + 8 índices espectrales (fórmulas puras)
+  processing.py              # suavizado + índices espectrales (fórmulas puras)
   indices.py                 # tabla única de índices por archivo/punto/hoja-fecha (cacheada)
   severity.py                 # anclas sana/con-roya y similitud con roya
   stats_utils.py               # comparación estadística con veredicto en palabras
   temporal.py                   # series por hoja física en el tiempo (página 5)
+  temporal_plots.py              # helpers de gráficos de la página 5
   notifier.py                    # mensajes y envío por Telegram
   config.py, ui.py, state.py      # constantes, estilos compartidos, registro de novedades
 data/                      # mediciones crudas (.txt), no se versiona la lógica de negocio aquí
@@ -68,15 +69,15 @@ tests/                     # pruebas automáticas
 
 ## Documentos de referencia
 
-- **`METODOLOGIA.md`** *(pendiente de escribir, ver `plan_mejora_app.md` F5.2)* — única fuente
-  de verdad del método: diseño de muestreo, índices con fórmula y cita, unidad de análisis,
-  similitud con roya, control de calidad y estadística.
-- **`plan_mejora_app.md`** — plan de la sesión de pulido de la app (en curso).
-- **`PROGRESO_MEJORA_APP.md`** — bitácora de esa sesión: qué se hizo, qué se decidió, qué falta.
+- **`METODOLOGIA.md`** — única fuente de verdad del método: diseño de muestreo, índices con
+  fórmula, unidad de análisis, similitud con roya, control de calidad y estadística.
+- **`ESTADO_PROYECTO.md`** — estado vigente: qué hay, qué está abierto y cómo retomar.
+- **`DEPLOY.md`** — cómo publicar la rama y desplegar la app.
+- **`plan_mejora_app.md`** / **`PROGRESO_MEJORA_APP.md`** — plan y bitácora de la sesión de pulido.
 - **`plan_mejora_paper.md`** — plan para el paper de CONCAPAN (pausado hasta cerrar la app).
 - **`evoluciontemporal.md`** — plan y hallazgos detallados de la página 5.
-- **`ESTADO_PROYECTO.md`** / **`ESTADO_ROYA.md`** — bitácora histórica del proyecto (partes
-  desactualizadas tras la sesión de pulido, ver el aviso al inicio de cada uno).
+- **`docs/bitacora.md`** y **`docs/historico_estado_roya.md`** — historia del proyecto (parte
+  desactualizada; no describe el comportamiento actual).
 
 ## Limitaciones importantes (léase antes de sacar conclusiones)
 
