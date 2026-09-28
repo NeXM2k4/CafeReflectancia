@@ -65,6 +65,31 @@ LEAF_MATURITY_CANONICAL = {
 ROYA_LABEL = "Con roya"
 SANA_LABEL = "Sana"
 
+# --- Tipo de hoja: fuente unica de verdad para color y etiqueta (F1.5 de plan_mejora_app.md) ---
+# Antes de esta sesion de pulido, "Madura"/"Tierna" tenian un color en `GROUP_COLORS` (paginas
+# 2-4) y otro distinto en `LEAF_TYPE_COLORS` (pagina 5) — el mismo concepto se veia de dos
+# colores segun la pagina. Ahora todo el codigo lee de aqui. Paleta validada contra daltonismo
+# (ver `evoluciontemporal.md` seccion 11: ΔE deutan 9.4 sobre fondo oscuro #0E1117) para M/T/R;
+# "V" usa un cuarto tono que no se probo formalmente (categoria minoritaria, sin serie temporal).
+#
+# IMPORTANTE: "Madura" y "Tierna" son el estado sanitario **desconocido**, no "sano" — la app
+# nunca debe mostrarlas como si equivalieran a "sana" (ver diagnostico de plan_mejora_app.md).
+LEAF_TYPE_COLORS = {"M": "#3987E5", "T": "#199E70", "R": "#D95926", "V": "#9085E9"}
+LEAF_TYPE_LABELS = {"M": "Madura", "T": "Tierna", "R": "Con roya", "V": "Vieja"}
+LEAF_TYPE_HELP = {
+    "M": "Hoja madura: sin sintomas visibles, pero su estado sanitario real no se conoce.",
+    "T": "Hoja tierna: tejido nuevo, la roya no ha tenido tiempo de manifestarse. Referencia sana.",
+    "R": "Hoja con roya confirmada visualmente.",
+    "V": "Hoja vieja (madurez adicional a M/T); en varias campañas no se registro su especie.",
+}
+LEAF_NUM_DASH = {1: "solid", 2: "dash"}
+
+
+def leaf_type_label(code: str, short: bool = False) -> str:
+    """Etiqueta para mostrar de un tipo de hoja ('M' -> 'Madura', o 'Madura (M)' si short=False)."""
+    nombre = LEAF_TYPE_LABELS.get(code, str(code))
+    return nombre if short else f"{nombre} ({code})"
+
 # --- Escala de riesgo de roya: 11 clases, una cada 10 % (definida por el usuario 2026-08-02) ---
 # Reemplaza la escala anterior de 3 niveles (bajo / medio / alto). Los nombres van en ingles
 # porque la alerta de Telegram se envia en ingles; el `level` es el riesgo nominal de la clase,
@@ -127,15 +152,17 @@ PALETTE = [
 
 COLOR_AVG = "#FAFAFA"  # claro y neutro para maxima legibilidad sobre el tema oscuro
 
-# Colores estables por grupo (madurez, susceptibilidad, estado sanitario) para graficas comparativas
+# Colores estables por grupo (madurez, susceptibilidad, estado sanitario) para graficas
+# comparativas. Madura/Tierna/Vieja/Con roya se toman de LEAF_TYPE_COLORS (fuente unica, ver
+# arriba); "Sana" y la susceptibilidad de variedad son dimensiones distintas sin equivalente ahi.
 GROUP_COLORS = {
-    "Madura": "#2A9D8F",
-    "Tierna": "#457B9D",
-    "Vieja": "#8D6A9F",
+    "Madura": LEAF_TYPE_COLORS["M"],
+    "Tierna": LEAF_TYPE_COLORS["T"],
+    "Vieja": LEAF_TYPE_COLORS["V"],
     "Susceptible": "#F4A261",
     "No susceptible": "#2A9D8F",
     SANA_LABEL: "#0CA30C",
-    ROYA_LABEL: "#D03B3B",
+    ROYA_LABEL: LEAF_TYPE_COLORS["R"],
 }
 
 # Paleta reducida y de alto contraste para agrupar curvas de espectros por "Hoja"
@@ -178,10 +205,8 @@ TEMPORAL_MIN_FECHAS_TENDENCIA = 5
 TEMPORAL_WL_MIN = 440  # por debajo, ~13 % de los espectros con roya da reflectancia negativa
 TEMPORAL_GRID_POINTS = 300
 
-# Color = tipo de hoja, trazo = numero de hoja. Trio validado para CVD sobre el fondo oscuro.
-LEAF_TYPE_COLORS = {"M": "#3987E5", "T": "#199E70", "R": "#D95926"}
-LEAF_TYPE_LABELS = {"M": "Madura", "T": "Tierna (al inicio)", "R": "Con roya"}
-LEAF_NUM_DASH = {1: "solid", 2: "dash"}
+# LEAF_TYPE_COLORS / LEAF_TYPE_LABELS / LEAF_NUM_DASH: definidas una sola vez, mas arriba
+# (bloque "Tipo de hoja: fuente unica de verdad"), para que valgan lo mismo en toda la app.
 
 INDEX_WAVELENGTHS = sorted(set(
     WL_NDVI + WL_PRI + WL_PSRI + WL_RCI + WL_EDI + WL_NDRE + WL_MNDVI705

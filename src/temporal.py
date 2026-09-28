@@ -28,17 +28,23 @@ from src.config import (
     TEMPORAL_WL_MIN,
     X_MAX,
 )
-from src.parser import leaf_label, load_spectrum
-from src.processing import calcular_indices, prepare_spectrum
+from src.indices import (
+    DISPLAY_INDICES,
+    QC_MIN_FECHAS,
+    QC_MIN_INDICES,
+    QC_Z_THRESHOLD,
+    file_index_table,
+    quality_flags,
+)
+from src.parser import load_spectrum
+from src.processing import prepare_spectrum
 
 INDICES = list(INDEX_DEFINITIONS)
 # FSR usa las mismas bandas que NDVI: en una distancia, un test multiple o el control de
-# calidad contaria doble.
-DIST_INDICES = [i for i in INDICES if i != "FSR"]
+# calidad contaria doble. Alias historico de src.indices.DISPLAY_INDICES.
+DIST_INDICES = DISPLAY_INDICES
 
-QC_Z_UMBRAL = 3.5  # robust z (Iglewicz & Hoaglin, 1993)
-QC_MIN_INDICES = 4  # mayoria de los 7 indices sin FSR
-QC_MIN_FECHAS = 5
+QC_Z_UMBRAL = QC_Z_THRESHOLD  # alias historico (ver src.indices para la regla completa)
 
 LEAF_KEYS = ["species", "leaf_id", "leaf", "leaf_type", "leaf_num"]
 DELTA = "Δ "
@@ -61,35 +67,20 @@ def temporal_selection(dataset: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-@st.cache_data(show_spinner="Calculando indices de cada archivo...")
 def file_indices(dataset: pd.DataFrame) -> tuple[pd.DataFrame, list[tuple[str, str]]]:
-    """Indices espectrales por archivo valido para el analisis temporal, mas errores de lectura."""
-    sel = temporal_selection(dataset)
-    sel = sel[sel["motivo_exclusion"].isna()]
+    """Indices espectrales por archivo valido para el analisis temporal (M/T/R, p1-p3).
 
-    filas, errores = [], []
-    for row in sel.itertuples():
-        try:
-            idx = calcular_indices(prepare_spectrum(load_spectrum(row.path)))
-        except ValueError as e:
-            errores.append((row.filename, str(e)))
-            continue
-        hoja = leaf_label(row.session, row.session_num)
-        filas.append({
-            "species": row.species,
-            "leaf_id": leaf_id(row.species, hoja),
-            "leaf": hoja,
-            "leaf_type": row.session,
-            "leaf_num": int(row.session_num),
-            "campaign_id": row.campaign_id,
-            "campaign_date": pd.Timestamp(row.campaign_date),
-            "point": int(row.point),
-            "repetition": row.repetition,
-            "filename": row.filename,
-            "path": row.path,
-            **idx,
-        })
-    return pd.DataFrame(filas), errores
+    Envoltorio de compatibilidad: el calculo real vive en `src.indices.file_index_table()`
+    desde 2026-09-28 (ver `plan_mejora_app.md`, fase F1), que es la unica funcion de la app que
+    recorre los espectros y llama a `calcular_indices()`. Esta funcion solo filtra y ordena las
+    columnas al formato que ya esperaba el resto de este modulo.
+    """
+    all_files, errores = file_index_table(dataset)
+    sel = all_files[
+        all_files["leaf_type"].isin(TEMPORAL_LEAF_TYPES) & all_files["point"].isin(TEMPORAL_VALID_POINTS)
+    ].copy()
+    cols = [*LEAF_KEYS, "campaign_id", "campaign_date", "point", "repetition", "filename", "path", *INDICES]
+    return sel[cols].reset_index(drop=True), errores
 
 
 def point_table(files: pd.DataFrame) -> pd.DataFrame:
@@ -175,25 +166,10 @@ def with_gaps(ts: pd.DataFrame, t_cero: pd.Timestamp) -> pd.DataFrame:
 
 
 def qc_flags(ts: pd.DataFrame) -> pd.DataFrame:
-    """Marca hojas-fecha atipicas respecto de la propia serie de la hoja.
-
-    Robust z = 0.6745 (x - mediana) / MAD, por indice y por hoja. Una hoja-fecha es atipica si
-    la mayoria de los indices (sin FSR) supera |z| > QC_Z_UMBRAL: un solo indice raro puede ser
-    biologia, casi todos a la vez apunta a la medicion (contacto de la sonda,
-    referencia de blanco). Las hojas con menos de QC_MIN_FECHAS fechas no se evaluan.
-    """
-    ts = ts.copy()
-    ts["qc_n_atipicos"] = 0
-    for _, g in ts.groupby("leaf_id"):
-        if len(g) < QC_MIN_FECHAS:
-            continue
-        vals = g[DIST_INDICES]
-        med = vals.median()
-        mad = (vals - med).abs().median().replace(0, np.nan)
-        z = 0.6745 * (vals - med) / mad
-        ts.loc[g.index, "qc_n_atipicos"] = (z.abs() > QC_Z_UMBRAL).sum(axis=1)
-    ts["qc_atipico"] = ts["qc_n_atipicos"] >= QC_MIN_INDICES
-    return ts
+    """Envoltorio de compatibilidad sobre `src.indices.quality_flags()` (unico lugar donde vive
+    la regla desde 2026-09-28, ver `plan_mejora_app.md` F1.6). Agrega tambien `qc_implausible`
+    (valores fisicamente imposibles, ej. mNDVI705 fuera de rango), ademas de `qc_atipico`."""
+    return quality_flags(ts)
 
 
 def _leaf_date_values(ts: pd.DataFrame, leaf_type: str) -> pd.DataFrame:

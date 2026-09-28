@@ -186,6 +186,34 @@ def sorted_campaigns(df: pd.DataFrame) -> list:
     )
 
 
+def campaign_label(campaign_date) -> str:
+    """Fecha de campaña en dd/mm/yyyy (el dataset la guarda como 'yyyy-mm-dd' o Timestamp).
+
+    Los ids tecnicos de campaña (`Roya_15_07`, `Campaña_10_08`, `C1_29_06`...) siguen existiendo
+    para el codigo, pero no son faciles de leer para alguien que recien ve la app: X2 de
+    `plan_mejora_app.md` pide mostrar siempre la fecha real en la interfaz.
+    """
+    if campaign_date is None or (isinstance(campaign_date, float) and pd.isna(campaign_date)):
+        return "?"
+    if hasattr(campaign_date, "strftime"):
+        return campaign_date.strftime("%d/%m/%Y")
+    try:
+        anio, mes, dia = str(campaign_date).split("-")
+        return f"{dia}/{mes}/{anio}"
+    except ValueError:
+        return str(campaign_date)
+
+
+def campaign_options(df: pd.DataFrame) -> dict[str, str]:
+    """Mapa `campaign_id -> 'dd/mm/yyyy'`, en el mismo orden que `sorted_campaigns()`.
+
+    Uso tipico: `st.multiselect("Campaña", sorted_campaigns(df), format_func=campaign_options(df).get)`.
+    """
+    ids = sorted_campaigns(df)
+    fecha_por_id = dict(zip(df["campaign_id"], df["campaign_date"]))
+    return {cid: campaign_label(fecha_por_id.get(cid)) for cid in ids}
+
+
 @dataclass(frozen=True)
 class FileRecord:
     path: str
