@@ -1,6 +1,6 @@
 # Plan — Mejora de la aplicación: más clara, más útil y coherente
 
-Fecha: 2026-09-28 · Estado: **propuesta, pendiente de tus decisiones (§7)** · Prioridad: **va antes
+Fecha: 2026-09-28 · Estado: **ejecutado (2026-09-28); ver `PROGRESO_MEJORA_APP.md`** · Prioridad: **va antes
 que `plan_mejora_paper.md`**. El paper se escribe después, a partir de lo que muestre la app.
 
 **Regla de alcance:** no se agregan funcionalidades nuevas. Se corrige, se reorganiza, se unifica

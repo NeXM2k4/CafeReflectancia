@@ -1,4 +1,4 @@
-# Estado del Proyecto — Reflectancia Foliar / Detección de Roya
+# Bitácora histórica — Reflectancia Foliar / Detección de Roya
 
 Última actualización: 2026-09-27
 
@@ -8,10 +8,8 @@
 > activas, la escala de riesgo pasó de 11 a 4 clases, las anclas de severidad se recalculan
 > distinto (por fecha, no por archivo), Telegram pasó a español, y hay un módulo nuevo
 > (`src/indices.py`) que centraliza los cálculos que antes describía este documento repartidos
-> por página. **La referencia vigente de esa sesión es `PROGRESO_MEJORA_APP.md`** (qué se hizo,
-> por qué, y qué quedó pendiente). Este archivo se reescribirá una vez cerrada esa fase
-> (`plan_mejora_app.md` F5.3: separar bitácora histórica de referencia vigente); hasta entonces,
-> tratá las secciones 6-9 y 13-14 como historia, no como el comportamiento actual del código.
+> por página. **Lo vigente está en `ESTADO_PROYECTO.md` (resumen) y `METODOLOGIA.md` (método)**; `PROGRESO_MEJORA_APP.md` cuenta qué se hizo en esa sesión (qué se hizo,
+> por qué, y qué quedó pendiente). Este archivo quedó como **bitácora histórica** (F5.3 hecho); tratá las secciones 6-9 y 13-14 como historia, no como el comportamiento actual del código.
 
 Este documento resume qué es el proyecto, cómo está construido, qué se hizo en la sesión de trabajo hasta ahora, y qué queda pendiente. El objetivo es que cualquiera (vos en una sesión futura, u otra persona) pueda retomarlo sin tener que releer todo el historial de conversación.
 
