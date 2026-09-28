@@ -353,6 +353,13 @@ def scan_dataset(_fingerprint: tuple) -> pd.DataFrame:
     return pd.DataFrame([r.__dict__ for r in records])
 
 
+def raw_dataset(data_dir: Path = DATA_DIR) -> pd.DataFrame:
+    """Dataset crudo, sin los filtros de `get_dataset()` (Pacamara No susceptible,
+    `EXCLUDED_SPECIES`). Uso principal: la seccion "Calidad de datos" de Inicio, para poder
+    contar cuantos archivos se excluyen y por que sin duplicar la logica de filtrado."""
+    return scan_dataset(_dir_fingerprint(data_dir))
+
+
 def get_dataset(data_dir: Path = DATA_DIR) -> pd.DataFrame:
     """Punto de entrada: escanea data/ (con cache automatico segun su contenido).
 

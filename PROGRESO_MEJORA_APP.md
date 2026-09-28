@@ -31,7 +31,7 @@ para que las revise al volver — cualquiera se puede deshacer)
 - [x] F1.4 — estadística única con veredicto
 - [x] F1.5 — etiquetas y colores únicos
 - [x] F1.6 — control de calidad extendido a valores imposibles
-- [ ] F2 — Inicio
+- [x] F2 — Inicio
 - [ ] F2 — página 2 (Índices)
 - [ ] F2 — página 3 (Especies)
 - [ ] F2 — página 4 (Estado de las hojas)
@@ -45,6 +45,22 @@ para que las revise al volver — cualquiera se puede deshacer)
 (Se marca [x] y se agrega una nota corta a medida que se completa cada ítem, más abajo.)
 
 ## Notas detalladas por tarea
+
+### F2 — Inicio (`app.py`)
+Reordenado en 4 secciones numeradas: (1) que datos hay — metricas + pestañas "por especie y
+campaña" / "por tipo de hoja" (antes solo estado sanitario Sana/Con roya, que mezclaba M+T como
+"Sana"); (2) **calidad de datos**, tabla nueva que junta en un solo lugar los 6 tipos de
+exclusion/marca que antes estaban repartidos o no se mostraban (Pacamara No susceptible,
+especie pendiente, nombre no reconocido, puntos p4-p6, hojas-fecha atipicas de control de
+calidad, mNDVI705 implausible), con un expander de detalle; (3) novedades y alerta (logica de
+F0.2, sin cambios); (4) glosario + mapa de las 5 paginas.
+Corregido: subtitulo global ("Bourbon · Pacamara" -> las 4 especies, en `src/ui.py`), metrica
+"Especies" que contaba la categoria "especie pendiente" como una especie real (ahora la excluye
+y lo explica en el tooltip), agregada `parser.raw_dataset()` (dataset sin filtrar, solo para
+contar exclusiones) y `parser.campaign_options()` ya en uso (columnas del pivote muestran fecha
+dd/mm/yyyy en vez de `Campaña_10_08`).
+
+
 
 ### F0.1 — Checkpoint
 Rama `mejora-app` creada desde `main`. Commit `7008d79` con todo lo pendiente de la sesion
