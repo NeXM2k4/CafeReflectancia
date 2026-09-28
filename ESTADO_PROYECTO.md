@@ -1,6 +1,6 @@
 # Estado del Proyecto — Reflectancia Foliar / Detección de Roya
 
-Última actualización: 2026-09-11
+Última actualización: 2026-09-27
 
 Este documento resume qué es el proyecto, cómo está construido, qué se hizo en la sesión de trabajo hasta ahora, y qué queda pendiente. El objetivo es que cualquiera (vos en una sesión futura, u otra persona) pueda retomarlo sin tener que releer todo el historial de conversación.
 
@@ -24,6 +24,13 @@ hay que excluir alguna especie otra vez, basta con agregarla ahí.
 muestreo (agosto/septiembre 2026) y una categoría de madurez de hoja nueva, "Vieja" (letra `V`
 en el nombre de archivo). Ver sección 4 para la convención de nombres (cambió de forma no trivial
 entre campañas) y sección 12 para el pendiente de atribución de especie que dejó esta categoría.
+
+**Cambio del 2026-09-27 — 2 campañas nuevas, sin tocar código:** se agregaron `Campaña_14_09`
+(2026-09-14) y `Campaña_21_09` (2026-09-21), con la misma carpeta sin prefijo y el mismo nivel
+duplicado (`data/14_09_2026/14_09_2026/...`) que las campañas de agosto/septiembre. El parser las
+reconoció sin ajustes: mismos 3 esquemas de nombre para `roya/` y `vieja/`, mismas subcarpetas de
+especie/susceptibilidad, **cero archivos nuevos sin reconocer**. Confirmado corriendo
+`get_dataset()` directamente. Ver sección 5 para las cifras actualizadas.
 
 La lógica central es:
 1. Escanear automáticamente la carpeta `data/` (recursivamente, tolerando nuevas subcarpetas de campañas de muestreo que se agreguen en el futuro).
@@ -189,46 +196,51 @@ Madura/Tierna (hoja sana de otra edad), no un estado sanitario — de ahí que s
 
 ## 5. Estado actual de los datos (`data/`)
 
-Al 2026-09-11: **1978 archivos** `.txt` en disco (subió de 949 con las 5 campañas nuevas de
-agosto/septiembre 2026, ver sección 4). Tras aplicar el filtro de `get_dataset()` (solo Pacamara
-"No susceptible" — `EXCLUDED_SPECIES` está vacía desde hoy, ver sección 1), el dashboard analiza
-**1618 archivos**. La categoría `Vieja (especie pendiente)` (27 archivos) se cuenta aparte, no
-se mezcla con las 4 especies reales (ver sección 4).
+Al 2026-09-27: **2377 archivos** `.txt` en disco (subió de 1978 con las 2 campañas nuevas de
+septiembre 2026, `Campaña_14_09` y `Campaña_21_09` — ver sección 4). Tras aplicar el filtro de
+`get_dataset()` (solo Pacamara "No susceptible" — `EXCLUDED_SPECIES` sigue vacía, ver sección 1),
+el dashboard analiza **1945 archivos**. La categoría `Vieja (especie pendiente)` (45 archivos) se
+cuenta aparte, no se mezcla con las 4 especies reales (ver sección 4).
 
 Pivote de archivos por especie y campaña (dataset del dashboard, post-filtro):
 
-| Especie    | C1_29_06 | C2_06_07 | Roya_15_07 | Roya_21_07 | Roya_27_07 | Campaña_10_08 | Campaña_17_08 | Campaña_24_08 | Campaña_31_08 | Campaña_07_09 | Total |
-|------------|---------:|---------:|-----------:|-----------:|-----------:|--------------:|--------------:|--------------:|--------------:|--------------:|------:|
-| Bourbon    | 36 | 36 | 66 | 36 | 66 | 69 | 51 | 48 | 51 | 48 | 507 |
-| Canefora   | 36 | 36 | 0  | 36 | 0  | 36 | 27 | 17 | 18 | 18 | 224 |
-| Cuscatleco | 36 | 36 | 36 | 36 | 36 | 36 | 36 | 36 | 36 | 36 | 360 |
-| Pacamara   | 36 | 36 | 66 | 36 | 66 | 64 | 49 | 48 | 51 | 48 | 500 |
+| Especie    | C1_29_06 | C2_06_07 | Roya_15_07 | Roya_21_07 | Roya_27_07 | Campaña_10_08 | Campaña_17_08 | Campaña_24_08 | Campaña_31_08 | Campaña_07_09 | Campaña_14_09 | Campaña_21_09 | Total |
+|------------|---------:|---------:|-----------:|-----------:|-----------:|--------------:|--------------:|--------------:|--------------:|--------------:|--------------:|--------------:|------:|
+| Bourbon    | 36 | 36 | 66 | 36 | 66 | 69 | 51 | 48 | 51 | 48 | 51 | 54 | 612 |
+| Canefora   | 36 | 36 | 0  | 36 | 0  | 36 | 27 | 17 | 18 | 18 | 18 | 18 | 260 |
+| Cuscatleco | 36 | 36 | 36 | 36 | 36 | 36 | 36 | 36 | 36 | 36 | 36 | 36 | 432 |
+| Pacamara   | 36 | 36 | 66 | 36 | 66 | 64 | 49 | 48 | 51 | 48 | 51 | 45 | 596 |
 
 `Vieja (especie pendiente)`: 0 en todas las campañas viejas y en `Campaña_17_08` (ese archivo se
-cuenta como Canefora, ver sección 4); 9 en `Campaña_24_08`, 9 en `Campaña_31_08` y 9 en
-`Campaña_07_09` (27 en total).
+cuenta como Canefora, ver sección 4); 9 en cada una de `Campaña_24_08`, `Campaña_31_08`,
+`Campaña_07_09`, `Campaña_14_09` y `Campaña_21_09` (45 en total). Las dos campañas nuevas siguen
+el mismo esquema sin especie explícita que las tres anteriores, así que engordan el mismo
+pendiente de la sección 12 en vez de resolverlo.
 
 Estado sanitario (`health_status`, dataset del dashboard):
-- Bourbon: 357 Sana, 147 Con roya (+3 sin reconocer, los archivos `araña*.txt` — sección 4)
-- Canefora: 224 Sana, 0 Con roya (sigue sin campañas de roya propias)
-- Cuscatleco: 360 Sana, 0 Con roya (sigue sin campañas de roya propias)
-- Pacamara: 358 Sana, 142 Con roya
-- Vieja (especie pendiente): 26 Sana, 1 sin reconocer (`vieja1.txt`, sin número de punto)
+- Bourbon: 438 Sana, 171 Con roya (+3 sin reconocer, los archivos `araña*.txt` — sección 4)
+- Canefora: 260 Sana, 0 Con roya (sigue sin campañas de roya propias)
+- Cuscatleco: 432 Sana, 0 Con roya (sigue sin campañas de roya propias)
+- Pacamara: 430 Sana, 166 Con roya
+- Vieja (especie pendiente): 44 Sana, 1 sin reconocer (`vieja1.txt`, sin número de punto)
 
-Susceptibilidad de variedad: 470 archivos Pacamara Susceptible; el resto queda con
+Susceptibilidad de variedad: 566 archivos Pacamara Susceptible; el resto queda con
 `susceptibility=NaN` (Bourbon/Canefora/Cuscatleco no tienen esa clasificación, más las hojas con
 roya de Pacamara que no vienen anidadas bajo una subcarpeta Susceptible/No susceptible).
 
 Notas:
 - **Canefora y Cuscatleco siguen sin hojas con roya propias.** El score de severidad para esas
-  dos especies usa la referencia enferma combinada (`referencia_propia: False`, ver sección 9) —
-  ya no es un caso teórico: al reincluir estas especies el 2026-09-11, ese respaldo **sí se
-  activa** por primera vez.
-- Los 360 archivos restantes en disco tras el filtro (1978 − 1618) son las hojas Pacamara "No
+  dos especies sigue usando la referencia enferma combinada (`referencia_propia: False`, ver
+  sección 9).
+- Los 432 archivos restantes en disco tras el filtro (2377 − 1945) son las hojas Pacamara "No
   susceptible".
-- 5 archivos quedan sin reconocer en todo el dataset crudo: 3 `araña*.txt` (Bourbon, campaña
-  `Campaña_10_08`), 1 `vieja1.txt` (bucket pendiente, campaña `Campaña_07_09`) y 1
-  `prueba_adri.txt` preexistente (Pacamara No susceptible, se filtra antes de llegar a la UI).
+- Siguen siendo **5 archivos sin reconocer** en todo el dataset crudo (las 2 campañas nuevas no
+  agregaron ninguno): 3 `araña*.txt` (Bourbon, campaña `Campaña_10_08`), 1 `vieja1.txt` (bucket
+  pendiente, campaña `Campaña_07_09`) y 1 `prueba_adri.txt` preexistente (Pacamara No susceptible,
+  se filtra antes de llegar a la UI).
+- **`Campaña_14_09` y `Campaña_21_09` aún no están commiteadas a git** (`git status` las muestra
+  como untracked al 2026-09-27) — el dashboard ya las analiza porque lee del disco, pero si se
+  quiere que el repo remoto las tenga hay que agregarlas y commitearlas aparte.
 
 ## 6. Módulos de código — qué hace cada uno
 
@@ -391,26 +403,26 @@ Ajustes de formato del 2026-08-02 (a pedido del usuario):
 
 ## 12. Pendientes / posibles próximos pasos
 
-**Abiertos al cierre de la sesión del 2026-09-11 (los más importantes primero):**
+**Abiertos al cierre de la sesión del 2026-09-27 (los más importantes primero):**
 
-- **Especie de la "hoja vieja" sin identificar.** 27 archivos (`Campaña_24_08`, `Campaña_31_08`,
-  `Campaña_07_09`) no especifican especie en el nombre ni en la carpeta. El usuario confirmó que
-  no lo sabe todavía; quedan agrupados bajo `SPECIES_PENDING_LABEL` ("Vieja (especie pendiente)")
-  en vez de perderse o asignarse mal. **Cuando el equipo de campo confirme la especie**, hay que
-  reclasificar esos archivos (renombrarlos para incluir la especie, o moverlos a la carpeta de
-  especie correspondiente) y correr `Recargar datos` — no hace falta tocar código salvo que la
-  convención de nombre vuelva a cambiar.
+- **Especie de la "hoja vieja" sin identificar — creció con las 2 campañas nuevas.** Ahora son
+  **45 archivos** (`Campaña_24_08`, `Campaña_31_08`, `Campaña_07_09`, `Campaña_14_09`,
+  `Campaña_21_09`) sin especie en el nombre ni en la carpeta, no 27. Sigue sin confirmación del
+  equipo de campo; siguen agrupados bajo `SPECIES_PENDING_LABEL`. Cuando se confirme la especie,
+  reclasificar (renombrar o mover de carpeta) y correr `Recargar datos` — no hace falta tocar
+  código.
+- **`Campaña_14_09` y `Campaña_21_09` sin commitear a git.** El dashboard ya las analiza (lee del
+  disco), pero el repo remoto no las tiene todavía — agregar y commitear cuando se decida.
 - **Archivos `araña*.txt` sin explicación.** 3 archivos en `Campaña_10_08/Bourbon/roya/` no
   siguen ningún patrón conocido. El usuario pidió ignorarlos por ahora; quedan como "no
   reconocidos" en el dataset. Aclarar qué representan (¿otra plaga?) y decidir si hay que
   excluirlos explícitamente o incorporarlos con su propio significado.
-- **Figuras y tablas del paper (sección 13/14) están desactualizadas.** Se generaron el
-  2026-08-02/03 con Canefora y Cuscatleco excluidas y sin las 5 campañas nuevas. Ahora que las 4
-  especies están de nuevo en el dataset y hay más de 1000 archivos nuevos, `make_ieee_figures.py`
-  hay que volver a correrlo a propósito (no se corrió automáticamente en esta sesión porque
-  reescribe `figures_ieee/` y afecta directamente al paper) y las tablas de la sección 14 hay que
-  recalcularlas. El argumento de la Tabla II sobre Cuscatleco/Canephora (sección 14.2) vuelve a
-  ser válido de nuevo al reincluir esas especies.
+- **Figuras y tablas del paper (sección 13/14) siguen desactualizadas, ahora con más margen.** Se
+  generaron el 2026-08-02/03 con Canefora y Cuscatleco excluidas y sin ninguna de las 7 campañas
+  agregadas desde entonces (5 en 09-11 + 2 en 09-27, ~1400 archivos nuevos en total). Falta correr
+  `make_ieee_figures.py` a propósito (reescribe `figures_ieee/`, por eso no se hace automático) y
+  recalcular las tablas de la sección 14. El argumento de la Tabla II sobre Cuscatleco/Canephora
+  (sección 14.2) sigue válido al tener las 4 especies de nuevo.
 - **Revisar si `Campaña_17_08` de Canefora mezcla "hoja vieja" con hojas M/T normales sin
   distinguirlas en los pivotes existentes.** Por ahora `leaf_maturity=Vieja` sí las distingue,
   pero ninguna página del dashboard tenía antes una tercera categoría de madurez — vale la pena
