@@ -31,11 +31,15 @@ TELEGRAM_MAX_CHARS = 4096
 # (~20 mensajes por minuto al mismo chat).
 SEND_DELAY_S = 0.4
 
-INDICES_ORDER = ["NDVI", "PRI", "PSRI", "RCI", "EDI", "FSR", "NDRE", "mNDVI705"]
+INDICES_ORDER = ["NDVI", "PRI", "PSRI", "RCI", "EDI", "NDRE", "mNDVI705"]
+# FSR se quito de la alerta (2026-09-28): usa las mismas bandas que NDVI (WL_FSR = WL_NDVI en
+# config.py), asi que su valor es identico y no aporta informacion propia — ver X8 de
+# plan_mejora_app.md.
 
 # Un indice se considera "en rango de alerta" (y se resalta en negrita) cuando su valor
-# normalizado entre la referencia sana y la referencia con roya llega al mismo umbral
-# que la app usa para riesgo alto.
+# normalizado entre la referencia sana y la referencia con roya llega a este umbral. Con la
+# escala de 4 clases (F3.3), 0.66 practicamente coincide con el nivel de "Revisar en campo"
+# (2/3 = 0.667), asi que no hizo falta ajustarlo al reducir de 11 a 4 clases.
 ALERT_THRESHOLD = 0.66
 
 BLOCK_SEPARATOR = "\n\n———\n\n"
@@ -82,8 +86,8 @@ def _class_bounds(indice: int) -> tuple[float, float]:
 
 
 def format_risk_scale() -> str:
-    """Que significa cada color y en que tramo de severidad cae, para leer las tarjetas."""
-    lineas = ["📋 <b>What each colour means</b>", ""]
+    """Que significa cada clase y en que tramo de similitud cae, para leer las tarjetas."""
+    lineas = ["📋 <b>Que significa cada clase</b>", ""]
     for i, (_, nombre, emoji, descripcion) in enumerate(RUST_RISK_CLASSES):
         bajo, alto = _class_bounds(i)
         lineas.append(
@@ -95,13 +99,13 @@ def format_risk_scale() -> str:
 def format_index_ranges(index_ranges: dict) -> str:
     """Informe de los valores minimo y maximo observados de cada indice.
 
-    Es la referencia contra la que se lee el valor de cada indice en las tarjetas, que ahora
-    muestran el porcentaje de severidad de ese indice en vez del rango.
+    Es la referencia contra la que se lee el valor de cada indice en las tarjetas, que ademas
+    muestran el porcentaje de similitud de ese indice en particular.
     """
     lineas = [
-        "📊 <b>Index reference ranges</b>",
+        "📊 <b>Rangos de referencia de cada indice</b>",
         "",
-        "Min and max observed across all reference leaves (young + rust-infected):",
+        "Minimo y maximo observado en todas las hojas de referencia (tiernas + con roya):",
     ]
     for name in INDICES_ORDER:
         rango = index_ranges.get(name, {})
@@ -112,25 +116,38 @@ def format_index_ranges(index_ranges: dict) -> str:
 
 
 def format_leaf_report(reporte: dict) -> str:
-    """Tarjeta de una hoja: riesgo, ubicacion, severidad estimada y detalle de los 7 indices.
+    """Tarjeta de una hoja: clase, ubicacion, similitud estimada y detalle de los 7 indices.
 
     `reporte` es un elemento de `leaf_severity_reports()` (src/severity.py). Los indices cuyo
     valor normalizado llega a ALERT_THRESHOLD se muestran en negrita.
     """
     score = reporte["score"]
     _, etiqueta, emoji, descripcion = rust_risk_class(score)
+    hoja = reporte.get("hoja") or ""
 
-    partes = [f"Date: {_fecha(reporte.get('campaign_date'))}"]
+    partes = [f"Fecha: {_fecha(reporte.get('campaign_date'))}"]
     if reporte.get("species"):
         partes.append(_esc(reporte["species"]))
-    if reporte.get("hoja"):
-        partes.append(_esc(reporte["hoja"]))
+    if hoja:
+        partes.append(_esc(hoja))
     ubicacion = " - ".join(partes)
 
     nota_ref = (
         ""
         if reporte.get("referencia_propia", True)
-        else " <i>(estimated reference: this species has no rust measurements of its own yet)</i>"
+        else " <i>(referencia estimada: esta especie todavia no tiene medidas de roya propias)</i>"
+    )
+    # F3.1: las hojas Tierna/Con roya que llegan en el mismo lote son la referencia que define
+    # las anclas (deberian salir ~0 % y ~100 % por construccion), no una alerta para actuar.
+    nota_tipo = ""
+    if hoja[:1] == "T":
+        nota_tipo = " <i>(hoja de referencia sana — no requiere accion en si misma)</i>"
+    elif hoja[:1] == "R":
+        nota_tipo = " <i>(hoja de referencia con roya confirmada — no requiere accion en si misma)</i>"
+    # F3.5: menos de 3 puntos ese dia es una medicion mas fragil que de costumbre.
+    nota_calidad = (
+        f" ⚠️ <i>medida con solo {reporte['n_puntos']} punto(s) esa fecha</i>"
+        if reporte.get("n_puntos", 3) < 3 else ""
     )
 
     lineas = [
@@ -138,12 +155,13 @@ def format_leaf_report(reporte: dict) -> str:
         "",
         ubicacion,
         "",
-        f"Estimated severity: <b>{score * 100:.0f} %</b> compared to a healthy reference leaf.",
-        f"<i>{_esc(descripcion)}</i>",
+        f"Similitud con la hoja con roya: <b>{score * 100:.0f} %</b> (0 % = como una hoja "
+        f"tierna sana; 100 % = como la hoja con roya confirmada de referencia).",
+        f"<i>{_esc(descripcion)}</i>{nota_tipo}{nota_calidad}",
         f"{rust_risk_action(score)}{nota_ref}",
         "",
-        f"Indices — value and severity of that single index "
-        f"({reporte['n_indices']}/{len(INDICES_ORDER)} comparable):",
+        f"Indices — valor y similitud de ese indice por si solo "
+        f"({reporte['n_indices']}/{len(INDICES_ORDER)} comparables):",
     ]
 
     for name in INDICES_ORDER:
@@ -151,7 +169,6 @@ def format_leaf_report(reporte: dict) -> str:
         norm = info.get("normalizado")
         pct = "–" if norm is None else f"{norm * 100:.0f} %"
         linea = f"{name:<9}{_fmt(info.get('valor')):>10}{pct:>8}"
-        norm = info.get("normalizado")
         if norm is not None and norm >= ALERT_THRESHOLD:
             lineas.append(f"<b>{_esc(linea)}</b>")
         else:
@@ -163,27 +180,28 @@ def format_leaf_report(reporte: dict) -> str:
 def format_header(n_archivos: int, archivos_por_especie: dict, n_roya: int, reportes: list) -> str:
     """Primer mensaje: cuantos archivos nuevos hay, por especie, y como leer lo que sigue."""
     lineas = [
-        "🍃 <b>Reflectance analysis updated</b>",
-        f"{n_archivos} new file(s) detected in data/"
-        + (f" — {len(reportes)} leaf(s) analysed." if reportes else "."),
+        "🍃 <b>Analisis de reflectancia actualizado</b>",
+        f"{n_archivos} archivo(s) nuevo(s) detectado(s) en data/"
+        + (f" — {len(reportes)} hoja(s) analizada(s)." if reportes else "."),
     ]
-    lineas += [f"- {_esc(especie)}: {n} file(s)" for especie, n in archivos_por_especie.items()]
+    lineas += [f"- {_esc(especie)}: {n} archivo(s)" for especie, n in archivos_por_especie.items()]
     if n_roya:
-        lineas.append(f"⚠️ {n_roya} file(s) flagged as rust in the filename.")
+        lineas.append(f"⚠️ {n_roya} archivo(s) marcado(s) como roya en el nombre.")
 
     if reportes:
         lineas += [
             "",
-            "Each leaf is reported as the average of its measurement points and assigned to the "
-            f"closest of the {len(RUST_RISK_CLASSES)} risk classes. Indices shown in <b>bold</b> "
-            f"are in the alert range (≥ {ALERT_THRESHOLD * 100:.0f} % of the way towards the "
-            "rust reference).",
+            "Cada hoja se reporta como el promedio de sus puntos de medicion y se asigna a la "
+            f"clase mas cercana de las {len(RUST_RISK_CLASSES)}. Los indices en <b>negrita</b> "
+            f"estan en rango de alerta (≥ {ALERT_THRESHOLD * 100:.0f} % del camino hacia la "
+            "referencia con roya). Las hojas Tierna/Con roya que aparezcan son la referencia, "
+            "no una alerta.",
         ]
         if any(not r.get("referencia_propia", True) for r in reportes):
             lineas += [
                 "",
-                "ℹ️ <i>Some of these species have no rust measurements of their own yet, so their "
-                "score uses the combined reference of the species that do.</i>",
+                "ℹ️ <i>Algunas de estas especies todavia no tienen medidas de roya propias, asi "
+                "que su similitud usa la referencia combinada de las que si tienen.</i>",
             ]
 
     return "\n".join(lineas)
