@@ -22,7 +22,7 @@ PAGES = [
     "pages/1_Espectros.py",
     "pages/2_Indices_Espectrales.py",
     "pages/3_Comparacion_Especies.py",
-    "pages/4_Severidad_Roya.py",
+    "pages/4_Estado_Hojas.py",
     "pages/5_Evolucion_Temporal.py",
 ]
 
