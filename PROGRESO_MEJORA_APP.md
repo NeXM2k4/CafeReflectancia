@@ -24,9 +24,9 @@ que vería Telegram no coincidía numéricamente con la de las páginas 4/5 para
 (orden de operaciones distinto) — corregido y verificado con diferencia 0.0 en las 191
 hojas-fecha del dataset.
 
-**8 commits** en la rama sobre `main` (uno de ellos el checkpoint inicial con trabajo previo a
-esta sesión), cada fase con su propio commit (`git log main..mejora-app`). Falta este último
-commit de cierre. 6/6 pruebas de humo pasan en el estado final.
+**9 commits** en la rama sobre `main` (uno de ellos el checkpoint inicial con trabajo previo a
+esta sesión), cada fase con su propio commit (`git log main..mejora-app`). 6/6 pruebas de humo
+pasan en el estado final. `main` queda intacto — nada de esto se fusionó.
 
 ## Decisiones D1–D7 (tomadas por mí, siguiendo mis propias recomendaciones del plan,
 porque el usuario está fuera y pidió avanzar con todas las fases; quedan documentadas
