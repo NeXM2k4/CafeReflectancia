@@ -37,7 +37,7 @@ para que las revise al volver — cualquiera se puede deshacer)
 - [x] F2 — página 4 (Estado de las hojas)
 - [x] F2 — página 1 (Espectros)
 - [~] F2 — página 5 (Evolución temporal) — parcial, ver nota
-- [ ] F3 — alerta de Telegram
+- [x] F3 — alerta de Telegram
 - [ ] F4 — textos, ayuda y glosario
 - [ ] F5 — documentación del repo
 - [ ] F6 — verificación final
@@ -45,6 +45,24 @@ para que las revise al volver — cualquiera se puede deshacer)
 (Se marca [x] y se agrega una nota corta a medida que se completa cada ítem, más abajo.)
 
 ## Notas detalladas por tarea
+
+### F3 — Alerta de Telegram (D1 español, F3.1, F3.2, F3.3, F3.5)
+`src/notifier.py` reescrito en español (antes en ingles, ver D1). Cambios:
+- `INDICES_ORDER` sin FSR (7 indices, coherente con `DISPLAY_INDICES`).
+- Texto de la tarjeta: "Similitud con la hoja con roya: X %" en vez de "Estimated severity...
+  healthy reference leaf" (X5/D4: ya no se habla de severidad de planta).
+- **F3.1:** hojas Tierna/Con roya que llegan en el mismo lote (son la referencia que define las
+  anclas) llevan la nota "(hoja de referencia sana/con roya — no requiere accion en si misma)".
+- **F3.5:** si la hoja se midio con menos de 3 puntos esa fecha, la tarjeta lo marca con ⚠️.
+- **F3.3:** el umbral de negrita (0.66) no se toco: coincide casi exacto con el nivel "Revisar
+  en campo" de la escala nueva (2/3 = 0.667), documentado el porque en el comentario del codigo.
+- Probado: tarjetas de ejemplo (Bourbon T1/M1, campaña Roya_21_07) se ven correctamente en
+  español; el empaquetado de mensajes sigue bajo el limite de 4096 caracteres de Telegram
+  (maxlen 3963/4096 en una prueba con 4 especies).
+- **Nota de redaccion pendiente de pulir** (no bloqueante): en una hoja de referencia (T/R), el
+  texto de accion generico ("Revisar esta hoja...") queda debajo de la nota "no requiere accion
+  en si misma", lo que puede leerse contradictorio a primera vista. Cosmetico, no afecta los
+  numeros.
 
 ### F2 — página 5: hecho parcialmente (decision razonada, no fue solo falta de tiempo)
 La pagina 5 (1244 lineas) es la mas grande y la mejor probada del proyecto (`evoluciontemporal.md`
