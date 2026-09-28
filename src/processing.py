@@ -100,8 +100,10 @@ def severity_score(values: dict, baseline: dict) -> dict | None:
 
     `values`: salida de `calcular_indices()` para ese archivo.
     `baseline`: dict {indice: {"sana": ancla_hoja_tierna, "enferma": ancla_hoja_con_roya}} de
-    la especie de ese archivo (ver `_severity_baselines()` en app.py). La hoja Tierna se usa
-    como ancla sana porque la roya todavia no tuvo tiempo de manifestarse en tejido nuevo.
+    la especie de ese archivo (ver `severity_baselines()` en `src/severity.py`). La hoja Tierna
+    se usa como ancla sana porque la roya todavia no tuvo tiempo de manifestarse en tejido nuevo.
+    Si `baseline` no trae una clave para algun indice de `values` (ej. FSR, que las anclas
+    excluyen a proposito, ver `src.indices.DISPLAY_INDICES`), ese indice se ignora solo.
 
     Cada indice se normaliza por separado entre sus dos anclas (con clip a 0-1) y el score
     final es la mediana de esos valores — mas robusto ante un indice atipico que el promedio,
