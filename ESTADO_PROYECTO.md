@@ -61,6 +61,7 @@ pages/
   2_Indices_Espectrales.py      # indices espectrales por especie, con agrupamiento dinamico
   3_Comparacion_Especies.py     # comparacion de indices entre las 4 especies
   4_Severidad_Roya.py           # score de severidad 0-100% por hoja/especie/campaña
+  5_Evolucion_Temporal.py       # la misma hoja fisica en el tiempo: indices, tendencias, espectro animado (2026-09-27)
 src/
   config.py                     # constantes: rutas, parametros SG, longitudes de onda, colores, labels
   parser.py                     # descubrimiento y parseo de archivos .txt de data/ (el modulo mas importante)
@@ -68,6 +69,7 @@ src/
   stats_utils.py                # pipeline estadistico generico (Shapiro -> ANOVA/Tukey o Kruskal/Dunn)
   state.py                      # tracking de "ultima verificacion" para saber que archivos son nuevos
   severity.py                   # anclas sana/enferma por especie + agregacion de severidad por hoja
+  temporal.py                   # series por hoja fisica, Δ/Δ*, severidad relativa, tendencias, QC, espectros medios
   ui.py                         # header, CSS global y helpers de presentacion compartidos
   notifier.py                   # armado y envio de los mensajes de Telegram via Bot API
 data/                           # datos crudos (.txt), organizados por carpeta de campaña > especie > (subcarpeta opcional)
@@ -331,6 +333,29 @@ Compara los 8 índices entre las especies disponibles (mínimo 2 seleccionadas; 
 ### `pages/4_Severidad_Roya.py`
 Score de severidad de roya 0–100% por hoja, con las mismas anclas sana/enferma que usa la alerta de Telegram (ver sección 9). Restringida a **hojas maduras** de Bourbon y Pacamara (`SUSCEPTIBLE` en el módulo): son las especies susceptibles, y la hoja madura es la de estado sanitario desconocido, que es el caso de interés real. Filtros por campaña y especie. Muestra el detalle por hoja/punto y el promedio por especie, con las etiquetas 🟢/🟡/🔴 correspondientes al mismo rango que Telegram.
 
+### `pages/5_Evolucion_Temporal.py` (2026-09-27)
+Sigue a **cada hoja física en el tiempo**: M1, M2, T1, T2 y R1 son las mismas hojas en todas las
+campañas (confirmado por el usuario y verificado en los datos). Plan, decisiones y resultados en
+**`evoluciontemporal.md`**, que es la referencia de esta página. En resumen:
+- Unidad = hoja-fecha (media de repeticiones por punto, luego media de puntos); solo p1–p3,
+  porque los puntos no son ubicaciones fijas y p4–p6 no cuentan (decisión del usuario).
+- **Lo principal es la sección 1: la evolución de las hojas maduras (M1, M2) de Bourbon y
+  Pacamara**, lado a lado, con las hojas T y R1 de fondo como referencias, y una tabla que
+  contrasta cada tendencia con las hojas M de los controles sin roya (`evoluciontemporal.md` §13).
+- Arriba de todo, un **resumen de hallazgos** que se recalcula solo; después la **sección 2** (qué
+  longitudes de onda e índices cambian con el tiempo, por grupo de hojas) y la **sección 3** (la
+  misma hoja semana a semana: R1 frente a hoja tierna). Hallazgo principal: en el visible, las hojas
+  tiernas se oscurecen al madurar (7/7) y las R1 se aclaran (2/2); ningún índice cambia solo en la
+  hoja con roya (`evoluciontemporal.md` §14).
+- Después, detalle por especie: ficha de datos, índices en el tiempo (valor / Δ / Δ* corregido por hojas T),
+  tendencias (Theil-Sen + Mann-Kendall + FDR, con Canefora y Cuscatleco como controles negativos),
+  severidad relativa (anclas S1 congeladas y S2 leave-one-campaign-out, con aviso de
+  circularidad), distancia espectral a R1, animación del espectro y CSV.
+- Control de calidad (robust z contra la propia serie de la hoja): marca 4 hojas-fecha, incluida
+  Pacamara R1 el 10/08; un interruptor las excluye y recalcula todo.
+- **No modifica** `severity.py`, la alerta de Telegram ni las páginas 1–4: sus anclas temporales
+  se calculan aparte.
+
 ## 9. Score de severidad de roya en la alerta de Telegram
 
 Implementado a pedido de Samuel (vía WhatsApp, 2026-07-17): la alerta de Telegram ahora, además de contar archivos nuevos por especie, incluye un **score de 0% (sana) a 100% (enferma)** calculado a partir de los índices espectrales, para que un trabajador de campo sepa de un vistazo qué tan comprometida está una hoja.
@@ -404,6 +429,23 @@ Ajustes de formato del 2026-08-02 (a pedido del usuario):
 ## 12. Pendientes / posibles próximos pasos
 
 **Abiertos al cierre de la sesión del 2026-09-27 (los más importantes primero):**
+
+- **Pacamara R1 el 10/08 parece una medición fallida** (reflectancia hundida en todo el espectro:
+  R800 = 29 % contra ~75–80 % en las fechas vecinas). Infla ~7 veces el ancla "con roya" de RCI de
+  Pacamara (0,242 en vez de 0,034 por fecha) y, como `severity_baselines()` promedia archivos, la
+  alerta de Telegram y la página 4 usan esa ancla inflada. **Decidir** si se excluye ese día del
+  ancla (cambia la alerta y los números del paper). Detalle en `evoluciontemporal.md` §11.1.
+- **mNDVI705 > 1** en hojas sanas de Pacamara el 24/08 y el 31/08, y negativo en un punto de
+  Bourbon M1 el 24/08: indica reflejo en el azul (R445 cerca de R705). Revisar cómo se midió esos
+  días antes de usar mNDVI705 de esas fechas en el paper.
+- **La tendencia de Bourbon M1 también aparece en Cuscatleco M1 (sin roya):** es más probable que
+  sea envejecimiento que roya asintomática. No presentarla como detección temprana (ver
+  `evoluciontemporal.md` §12).
+- **Siguiente paso del estudio temporal:** modelo de evolución normal (hojas sanas + controles) para
+  detectar desvíos, y pedir al equipo de campo hojas marcadas antes de los síntomas con severidad
+  visual por fecha, sin lo cual no se puede entrenar un predictor de roya (`evoluciontemporal.md` §14.3).
+- **Probar la página 5 en un navegador real** y darle "Reproducir" a la animación: se validó con
+  `AppTest` y renderizando las figuras a PNG, pero la extensión de Chrome no respondió.
 
 - **Especie de la "hoja vieja" sin identificar — creció con las 2 campañas nuevas.** Ahora son
   **45 archivos** (`Campaña_24_08`, `Campaña_31_08`, `Campaña_07_09`, `Campaña_14_09`,

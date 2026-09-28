@@ -167,3 +167,22 @@ INDEX_DEFINITIONS = {
 }
 
 ALPHA_SIGNIFICANCE = 0.05
+
+# --- Evolucion temporal por hoja (ver evoluciontemporal.md) ---
+# Los puntos no son ubicaciones fijas entre campañas y solo p1-p3 son validos (decision del
+# usuario 2026-09-27); p4-p6 aparecen en algunas campañas y se excluyen del analisis temporal.
+TEMPORAL_VALID_POINTS = (1, 2, 3)
+TEMPORAL_LEAF_TYPES = ("M", "T", "R")
+TEMPORAL_BASELINE_CAMPAIGNS = 2  # las hojas T envejecen: el ancla sana usa solo las primeras fechas
+TEMPORAL_MIN_FECHAS_TENDENCIA = 5
+TEMPORAL_WL_MIN = 440  # por debajo, ~13 % de los espectros con roya da reflectancia negativa
+TEMPORAL_GRID_POINTS = 300
+
+# Color = tipo de hoja, trazo = numero de hoja. Trio validado para CVD sobre el fondo oscuro.
+LEAF_TYPE_COLORS = {"M": "#3987E5", "T": "#199E70", "R": "#D95926"}
+LEAF_TYPE_LABELS = {"M": "Madura", "T": "Tierna (al inicio)", "R": "Con roya"}
+LEAF_NUM_DASH = {1: "solid", 2: "dash"}
+
+INDEX_WAVELENGTHS = sorted(set(
+    WL_NDVI + WL_PRI + WL_PSRI + WL_RCI + WL_EDI + WL_NDRE + WL_MNDVI705
+))
