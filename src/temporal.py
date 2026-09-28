@@ -8,7 +8,10 @@ cada decision en evoluciontemporal.md.
 
 from __future__ import annotations
 
+import hashlib
+import os
 import warnings
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -333,6 +336,43 @@ def distance_to_rust(files: pd.DataFrame, ts: pd.DataFrame) -> pd.DataFrame:
     return pd.DataFrame(filas)
 
 
+_SPECTRA_CACHE_DIR = Path(__file__).resolve().parent.parent / ".state" / "spectra_cache"
+
+
+def _spectra_signature(files: pd.DataFrame, wl_min: float, wl_max: float, n_points: int) -> str:
+    """Huella de los archivos (ruta + mtime) y de los parametros: cambia si se toca data/."""
+    h = hashlib.sha1(f"{wl_min}|{wl_max}|{n_points}".encode())
+    for row in sorted(zip(files["leaf_id"], files["campaign_date"].astype(str), files["point"], files["path"])):
+        try:
+            mtime = os.stat(row[3]).st_mtime_ns
+        except OSError:
+            mtime = 0
+        h.update(f"{row}|{mtime}".encode("utf-8", "surrogateescape"))
+    return h.hexdigest()
+
+
+def _load_spectra_cache(firma: str) -> pd.DataFrame | None:
+    """Cache en disco de los espectros medios: leerlos otra vez tarda ~9 s con el dataset actual."""
+    archivo = _SPECTRA_CACHE_DIR / f"{firma}.pkl"
+    if not archivo.exists():
+        return None
+    try:
+        return pd.read_pickle(archivo)
+    except Exception:  # noqa: BLE001 (cache corrupto: se recalcula)
+        return None
+
+
+def _save_spectra_cache(firma: str, df: pd.DataFrame) -> None:
+    try:
+        _SPECTRA_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+        existentes = sorted(_SPECTRA_CACHE_DIR.glob("*.pkl"), key=lambda p: p.stat().st_mtime)
+        for viejo in existentes[:-11]:  # conserva solo las ultimas huellas
+            viejo.unlink(missing_ok=True)
+        df.to_pickle(_SPECTRA_CACHE_DIR / f"{firma}.pkl")
+    except OSError:
+        pass  # es una optimizacion, no algo critico
+
+
 @st.cache_data(show_spinner="Calculando espectros medios por hoja y fecha...")
 def leaf_mean_spectra(files: pd.DataFrame, wl_min: float = TEMPORAL_WL_MIN, wl_max: float = X_MAX,
                       n_points: int = TEMPORAL_GRID_POINTS) -> pd.DataFrame:
@@ -341,6 +381,17 @@ def leaf_mean_spectra(files: pd.DataFrame, wl_min: float = TEMPORAL_WL_MIN, wl_m
     La grilla es la misma en todos los frames de la animacion: si cambiara entre fechas, parte
     del cambio visible seria artefacto de la interpolacion. Mismos dos pasos que los indices.
     """
+    firma = _spectra_signature(files, wl_min, wl_max, n_points)
+    guardado = _load_spectra_cache(firma)
+    if guardado is not None:
+        return guardado
+    resultado = _leaf_mean_spectra_compute(files, wl_min, wl_max, n_points)
+    _save_spectra_cache(firma, resultado)
+    return resultado
+
+
+def _leaf_mean_spectra_compute(files: pd.DataFrame, wl_min: float, wl_max: float,
+                               n_points: int) -> pd.DataFrame:
     grid = np.linspace(wl_min, wl_max, n_points)
     curvas = []
     for row in files.itertuples():
