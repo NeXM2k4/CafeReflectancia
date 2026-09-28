@@ -35,7 +35,7 @@ para que las revise al volver — cualquiera se puede deshacer)
 - [ ] F2 — página 2 (Índices)
 - [ ] F2 — página 3 (Especies)
 - [x] F2 — página 4 (Estado de las hojas)
-- [ ] F2 — página 1 (Espectros)
+- [x] F2 — página 1 (Espectros)
 - [ ] F2 — página 5 (Evolución temporal)
 - [ ] F3 — alerta de Telegram
 - [ ] F4 — textos, ayuda y glosario
