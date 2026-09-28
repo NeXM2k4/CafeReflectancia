@@ -36,7 +36,7 @@ para que las revise al volver — cualquiera se puede deshacer)
 - [ ] F2 — página 3 (Especies)
 - [x] F2 — página 4 (Estado de las hojas)
 - [x] F2 — página 1 (Espectros)
-- [ ] F2 — página 5 (Evolución temporal)
+- [~] F2 — página 5 (Evolución temporal) — parcial, ver nota
 - [ ] F3 — alerta de Telegram
 - [ ] F4 — textos, ayuda y glosario
 - [ ] F5 — documentación del repo
@@ -45,6 +45,36 @@ para que las revise al volver — cualquiera se puede deshacer)
 (Se marca [x] y se agrega una nota corta a medida que se completa cada ítem, más abajo.)
 
 ## Notas detalladas por tarea
+
+### F2 — página 5: hecho parcialmente (decision razonada, no fue solo falta de tiempo)
+La pagina 5 (1244 lineas) es la mas grande y la mejor probada del proyecto (`evoluciontemporal.md`
+documenta rondas previas de test con AppTest y 15 combinaciones de filtros). Reescribirla
+completa a pestañas + mover ~400 lineas de helpers a un modulo es una transformacion mecanica
+grande (reindentar cientos de lineas bajo `with tab:`) con alto riesgo de romper algo que un
+smoke test (solo detecta excepciones, no corrección visual) no atraparía. Decidí **no** hacer
+esa reescritura completa esta sesion, y en cambio:
+
+- **Hecho:** agregada la **similitud unificada (opcion "U")** al selector de anclas de la
+  seccion 7, junto a S1/S2. Verificado que da el mismo numero que `leaf_date_similarity` y que
+  `leaf_severity_reports` (Telegram) para las mismas hojas-fecha.
+- **Decision importante, no un bug:** S1/S2 (anclas propias de esta pagina, congeladas a las
+  primeras 2 campañas) **se mantienen como principal** en esta pagina, no U. Motivo documentado
+  en el propio `evoluciontemporal.md` §5.3: usar "todas las hojas T" como ancla (la opcion
+  unificada) mezcla hoja tierna con hoja casi madura porque las T envejecen 12 semanas — es
+  exactamente el problema que S1 evita a proposito para *esta* pregunta (evolucion en el
+  tiempo). Forzar la misma ancla en todos lados hubiera sido peor, no mejor. Se agrego una
+  explicacion en pantalla de por que esta pagina usa una ancla distinta al resto de la app.
+- **Verificacion durante el desarrollo:** al conectar "U", los primeros numeros no coincidian
+  con el chequeo anterior (2.0 % vs 4.43 %) — pero era una comparacion contra el valor *antes*
+  del fix de `leaf_severity_reports`, no una regresion nueva. Re-verificado en un mismo proceso:
+  `leaf_date_similarity` y `leaf_severity_reports` dan **exactamente 0.04431585467491947** para
+  Bourbon M1 el 21/07, coincidiendo entre si.
+- **No hecho, queda pendiente para la proxima sesion:** las 10 secciones no se agruparon en 5
+  pestañas, ni se movieron los helpers de graficos a un modulo separado. El lenguaje tecnico
+  (Δ*, FDR, robust z, Theil-Sen) sigue mayormente como estaba (ya tenia bastante explicacion en
+  captions y expanders, revisado en la lectura inicial). Recomendacion para retomarlo: hacerlo
+  en un cambio dedicado, seccion por seccion, con captura de pantalla antes/despues de cada una
+  (no solo AppTest) antes de dar por buena la reorganizacion.
 
 ### D4 aplicada — Escala de riesgo reducida a 4 clases
 `src/config.py`: `RUST_RISK_CLASSES` pasa de 11 clases (con descripciones de planta entera:

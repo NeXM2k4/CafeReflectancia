@@ -18,6 +18,7 @@ from src.config import (
     TEMPORAL_VALID_POINTS,
 )
 from src.parser import get_dataset
+from src.severity import leaf_date_similarity, severity_baselines
 from src.temporal import (
     DELTA,
     DELTA_STAR,
@@ -979,21 +980,35 @@ st.caption(
 
 # ---------- 5. severidad relativa ----------
 st.subheader("7. Severidad relativa en el tiempo")
+st.caption(
+    "**\"Similitud unificada\" es el mismo numero que la pagina 4 y Telegram** (ancla sana = "
+    "todas las hojas T, ponderada por fecha, sin las hojas-fecha atipicas). **S1/S2 son propias "
+    "de esta pagina**: usan solo las 2 primeras campañas como ancla sana, precisamente porque "
+    "las hojas T envejecen 12 semanas y una ancla con todas las fechas mezclaria hoja tierna con "
+    "hoja casi madura — es la eleccion correcta para *esta* pregunta (evolucion), aunque no sea "
+    "la misma ancla que usa el resto de la app para el estado *actual* de una hoja."
+)
 c1, c2 = st.columns([2, 1])
 ancla = c1.radio(
     "Anclas",
-    ["S1 — congeladas", "S2 — sin la fecha evaluada (sensibilidad)"],
+    ["S1 — congeladas (recomendada aqui)", "S2 — sin la fecha evaluada (sensibilidad)",
+     "U — similitud unificada (igual a Telegram/pág. 4)"],
     horizontal=True,
-    help="S1: ancla con roya = media de todas las fechas de R. S2: para cada fecha, el ancla con "
-         "roya se calcula sin esa fecha (leave-one-campaign-out).",
+    help="S1: ancla con roya = media de todas las fechas de R, ancla sana = T en las primeras "
+         "campañas. S2: para cada fecha, el ancla con roya se calcula sin esa fecha "
+         "(leave-one-campaign-out). U: la misma similitud que el resto de la app.",
 )
-sin_recorte = c2.toggle("Sin recorte a 0–100 %", value=False)
-sev_col = "sev_S1" if ancla.startswith("S1") else "sev_S2"
+sin_recorte = c2.toggle("Sin recorte a 0–100 % (solo S1/S2)", value=False)
+ancla_code = ancla.split()[0]  # "S1", "S2" o "U"
+sev_col = {"S1": "sev_S1", "S2": "sev_S2", "U": "sev_U"}[ancla_code]
+if ancla_code == "U" and sin_recorte:
+    st.caption("La similitud unificada siempre esta recortada a 0-100 % (ignora 'sin recorte').")
 
 st.warning(
-    "**Circularidad:** en Bourbon y Pacamara la única hoja con roya es R1, así que el ancla "
-    "\"con roya\" *es* el promedio de R1 en el tiempo. La severidad de R1 contra su propio promedio "
-    "tiende a quedar alrededor del 100 % por construcción. S2 lo atenúa pero no lo elimina. "
+    "**Circularidad (S1/S2):** en Bourbon y Pacamara la única hoja con roya es R1, así que el "
+    "ancla \"con roya\" *es* el promedio de R1 en el tiempo. La severidad de R1 contra su propio "
+    "promedio tiende a quedar alrededor del 100 % por construcción. S2 lo atenúa pero no lo "
+    "elimina, y U tiene el mismo problema de fondo (una sola hoja define su propia referencia). "
     "Úsala para comparar hojas entre sí, no como medida absoluta de progresión."
 )
 if species not in species_with_rust:
@@ -1001,10 +1016,13 @@ if species not in species_with_rust:
 
 sev = severity_timeseries(files, anchors, clip=not sin_recorte)
 sev_sp = sev[(sev["species"] == species) & sev["leaf"].isin(sel_leaves)]
+baselines_global = severity_baselines(df)
+sev_u = leaf_date_similarity(ts, baselines_global)[["leaf_id", "campaign_date", "similitud"]].rename(columns={"similitud": "sev_U"})
+sev_sp = sev_sp.merge(sev_u, on=["leaf_id", "campaign_date"], how="left")
 sev_plot = with_gaps(
     ts[["species", "leaf_id", "leaf", "leaf_type", "leaf_num", "campaign_id", "campaign_date",
         "dia", "n_puntos", "qc_atipico"]]
-    .merge(sev_sp[["leaf_id", "campaign_date", "sev_S1", "sev_S2"]], on=["leaf_id", "campaign_date"]),
+    .merge(sev_sp[["leaf_id", "campaign_date", "sev_S1", "sev_S2", "sev_U"]], on=["leaf_id", "campaign_date"]),
     T_CERO,
 )
 fig = go.Figure()
@@ -1034,9 +1052,10 @@ if not r1.empty:
         "Hoja": r1["leaf"],
         "S1 (%)": r1["sev_S1"] * 100,
         "S2 (%)": r1["sev_S2"] * 100,
+        "U (%)": r1["sev_U"] * 100,
         "S2 − S1 (pp)": (r1["sev_S2"] - r1["sev_S1"]) * 100,
     })
-    with st.expander("Sensibilidad de la hoja con roya a las anclas (S1 vs S2)"):
+    with st.expander("Sensibilidad de la hoja con roya a las anclas (S1 vs S2 vs U)"):
         st.dataframe(comp, hide_index=True, width="stretch",
                      column_config={c: st.column_config.NumberColumn(c, format="%.1f") for c in comp.columns[2:]})
 
