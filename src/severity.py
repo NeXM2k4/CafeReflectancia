@@ -1,4 +1,14 @@
-"""Anclas de referencia sana/enferma por especie e indice, para el score de severidad de roya."""
+"""Anclas de referencia sana/con-roya por especie e indice, para la similitud espectral con roya.
+
+Hasta el 2026-09-28 este modulo promediaba **archivos** para armar las anclas, lo que sobre-
+pesaba las campañas con mas repeticiones (las de julio, con hasta 10 repeticiones por punto en
+las hojas con roya, pesaban ~3 veces mas que las de septiembre, con 3). Ver `plan_mejora_app.md`
+fase F1.3. Ahora las anclas se calculan sobre la tabla **hoja-fecha** (cada fecha pesa igual,
+sin importar cuantas repeticiones tuvo) y excluyen las hojas-fecha marcadas por el control de
+calidad (`src.indices.quality_flags`): outliers respecto de la propia historia de la hoja, o
+valores fisicamente imposibles (mNDVI705 fuera de rango). FSR se excluye siempre: usa las
+mismas bandas que NDVI (`config.WL_FSR`) y duplicaria su peso en la mediana.
+"""
 
 from __future__ import annotations
 
@@ -6,11 +16,11 @@ import numpy as np
 import pandas as pd
 import streamlit as st
 
-from src.config import INDEX_DEFINITIONS
-from src.parser import leaf_label, load_spectrum
+from src.config import TEMPORAL_VALID_POINTS
+from src.indices import DISPLAY_INDICES, file_index_table, leaf_date_table, quality_flags
+from src.parser import leaf_label
 from src.processing import calcular_indices, prepare_spectrum, severity_score
-
-_INDICES = list(INDEX_DEFINITIONS)
+from src.parser import load_spectrum
 
 
 def _min_max(col: pd.Series) -> tuple[float | None, float | None]:
@@ -21,53 +31,39 @@ def _min_max(col: pd.Series) -> tuple[float | None, float | None]:
     return float(limpio.min()), float(limpio.max())
 
 
-@st.cache_data(show_spinner="Calculando referencias de severidad de roya...")
+@st.cache_data(show_spinner="Calculando referencias de similitud con roya...")
 def severity_baselines(dataset: pd.DataFrame) -> dict:
-    """Ancla sana (hoja Tierna) y ancla enferma (hoja Con roya) por especie e indice.
+    """Ancla sana (hoja Tierna) y ancla con roya (hoja Con roya) por especie e indice.
 
     La hoja Tierna se usa como ancla sana porque la roya no ha tenido tiempo de manifestarse
-    en tejido nuevo. Una especie sin muestras de roya propias usa como ancla enferma el
+    en tejido nuevo. Una especie sin muestras de roya propias usa como ancla con roya el
     promedio combinado de todas las que si las tienen, y el dict la marca con
-    referencia_propia=False. Hoy el dataset solo trae Bourbon y Pacamara, que tienen ancla
-    propia, asi que ese respaldo no se activa; se conserva para cuando entren especies nuevas.
+    `referencia_propia=False` (hoy eso aplica a Canefora y Cuscatleco).
 
-    Incluye ademas la clave especial '__global_range__' con el min/max de cada indice
-    calculado sobre todas las filas de referencia (Tierna + Con roya).
+    **Unidad: hoja-fecha, no archivo** (cada fecha pesa igual) y sin las hojas-fecha marcadas
+    por control de calidad. Solo p1-p3 (`leaf_date_table`). FSR queda fuera de las anclas: no
+    aparece en `baselines[especie]["indices"]`, asi que `severity_score()` lo ignora solo.
+
+    Incluye ademas la clave especial '__global_range__' con el min/max de cada indice sobre
+    todas las hojas-fecha de referencia (Tierna + Con roya) usadas para las anclas.
     """
-    recognized = dataset[dataset["name_recognized"]]
-    reference_rows = recognized[
-        (recognized["leaf_maturity"] == "Tierna") | (recognized["health_status"] == "Con roya")
-    ]
+    files, _ = file_index_table(dataset)
+    ld = quality_flags(leaf_date_table(files, TEMPORAL_VALID_POINTS))
+    limpio = ld[~ld["qc_flag"]]
 
-    calculado = []
-    for row in reference_rows.itertuples():
-        try:
-            raw = load_spectrum(row.path)
-            idx = calcular_indices(prepare_spectrum(raw))
-        except ValueError:
-            continue
-        calculado.append({
-            "species": row.species,
-            "leaf_maturity": row.leaf_maturity,
-            "health_status": row.health_status,
-            **idx,
-        })
-
-    if not calculado:
+    sana = limpio[limpio["leaf_type"] == "T"].groupby("species")[DISPLAY_INDICES].mean()
+    if sana.empty:
         return {}
-
-    calc_df = pd.DataFrame(calculado)
-    sana = calc_df[calc_df["leaf_maturity"] == "Tierna"].groupby("species")[_INDICES].mean()
-    enferma_especie = calc_df[calc_df["health_status"] == "Con roya"].groupby("species")[_INDICES].mean()
-    enferma_global = calc_df[calc_df["health_status"] == "Con roya"][_INDICES].mean()
+    enferma_especie = limpio[limpio["leaf_type"] == "R"].groupby("species")[DISPLAY_INDICES].mean()
+    enferma_global = limpio[limpio["leaf_type"] == "R"][DISPLAY_INDICES].mean()
 
     baselines: dict = {}
     for species in sana.index:
         tiene_referencia_propia = species in enferma_especie.index
         enferma = enferma_especie.loc[species] if tiene_referencia_propia else enferma_global
-        # Rango observado del indice en las hojas de referencia de esa especie: es lo que la
-        # alerta muestra al lado del valor, para saber si esta alto o bajo para su especie.
-        filas_especie = calc_df[calc_df["species"] == species]
+        # Rango observado del indice en las hojas-fecha de referencia de esa especie: es lo
+        # que la alerta muestra al lado del valor, para saber si esta alto o bajo para su especie.
+        filas_especie = limpio[limpio["species"] == species]
         baselines[species] = {
             "referencia_propia": tiene_referencia_propia,
             "indices": {
@@ -77,13 +73,13 @@ def severity_baselines(dataset: pd.DataFrame) -> dict:
                     "min": _min_max(filas_especie[idx_name])[0],
                     "max": _min_max(filas_especie[idx_name])[1],
                 }
-                for idx_name in _INDICES
+                for idx_name in DISPLAY_INDICES
             },
         }
 
     global_range = {}
-    for idx_name in _INDICES:
-        col = calc_df[idx_name].dropna()
+    for idx_name in DISPLAY_INDICES:
+        col = limpio[idx_name].dropna()
         if not col.empty:
             global_range[idx_name] = {"min": float(col.min()), "max": float(col.max())}
         else:
@@ -107,14 +103,16 @@ def leaf_severity_reports(new_df: pd.DataFrame, baselines: dict) -> list[dict]:
 
     Se promedia en dos pasos —primero las medidas repetidas de cada punto, despues los puntos
     de la hoja— para que una hoja con puntos incompletos no quede sesgada hacia el punto que
-    tenga mas repeticiones. Se promedia tanto la severidad como cada indice.
+    tenga mas repeticiones. Solo p1-p3 (mismo criterio que el resto de la app, ver
+    `TEMPORAL_VALID_POINTS`). Se promedia tanto la similitud como cada indice.
 
-    Devuelve una lista de dicts (una por hoja) ordenada de mayor a menor severidad, con el
+    Devuelve una lista de dicts (una por hoja) ordenada de mayor a menor similitud, con el
     valor de cada indice, su referencia sana y su posicion normalizada hacia la referencia
-    con roya (lo que `notifier` usa para decidir que indices van en negrita).
+    con roya (lo que `notifier` usa para decidir que indices resaltar).
     """
     filas = []
-    for row in new_df[new_df["name_recognized"]].itertuples():
+    sel = new_df[new_df["name_recognized"] & new_df["point"].isin(TEMPORAL_VALID_POINTS)]
+    for row in sel.itertuples():
         especie_baseline = baselines.get(row.species)
         if especie_baseline is None:
             continue
@@ -139,7 +137,7 @@ def leaf_severity_reports(new_df: pd.DataFrame, baselines: dict) -> list[dict]:
         return []
 
     medidas = pd.DataFrame(filas)
-    valores = ["score", *_INDICES]
+    valores = ["score", *DISPLAY_INDICES]
     claves_punto = ["species", "campaign", "hoja", "punto"]
     claves_hoja = ["species", "campaign", "hoja"]
 
@@ -156,7 +154,7 @@ def leaf_severity_reports(new_df: pd.DataFrame, baselines: dict) -> list[dict]:
         idx_baseline = especie_baseline.get("indices", {})
 
         indices = {}
-        for idx_name in _INDICES:
+        for idx_name in DISPLAY_INDICES:
             ref = idx_baseline.get(idx_name, {})
             valor = fila[idx_name]
             indices[idx_name] = {
