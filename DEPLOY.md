@@ -68,6 +68,7 @@ Para dejarlo corriendo: `systemd`, o Docker con un `Dockerfile` mínimo
 poniendo delante un proxy con HTTPS y contraseña (Streamlit no trae autenticación propia).
 
 ## D. Verificación tras desplegar
-1. Inicio carga y "Calidad de datos" no muestra archivos sin reconocer inesperados.
-2. Recorre las 5 pestañas de la página 5 y cambia de especie 3–4 veces seguidas.
-3. "Verificar y analizar nueva data" → mira la vista previa; **no** envíes si no esperas novedades.
+1. *Panorama* carga y *Datos y calidad* no muestra archivos sin reconocer inesperados.
+2. En *Evolución temporal*, recorre las 5 pestañas y cambia de variedad 3–4 veces seguidas.
+3. En *Alerta de campo*, «Revisar novedades» → mira la vista previa; **no** envíes si no esperas
+   novedades (tras un reinicio en la nube, «Marcar todo como visto»).

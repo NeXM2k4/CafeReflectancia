@@ -7,7 +7,6 @@ import streamlit as st
 from plotly.subplots import make_subplots
 
 from src.config import (
-    INDEX_DEFINITIONS,
     INDEX_WAVELENGTHS,
     LEAF_TYPE_COLORS,
     RUST_RISK_CLASSES,
@@ -42,7 +41,7 @@ from src.temporal import (
     temporal_selection,
     with_gaps,
 )
-from src.ui import filter_tag, index_column_config, inject_base_css, render_header, render_index_legend
+from src.ui import chart, index_column_config, note, page_header, section, sidebar_footer
 
 from src.temporal_plots import (
     GRID,
@@ -58,18 +57,22 @@ from src.temporal_plots import (
     rgba as _rgba,
 )
 
-st.set_page_config(page_title="Evolucion Temporal", page_icon="⏳", layout="wide")
-inject_base_css()
-render_header("Evolución temporal — la misma hoja física a lo largo de las campañas")
+page_header(
+    "Seguimiento de hojas",
+    "Evolución temporal",
+    "Las mismas hojas medidas semana a semana. La pregunta central es si un cambio en una hoja madura "
+    "es propio de la roya o es envejecimiento normal, que también aparece en hojas tiernas y en las "
+    "variedades control sin roya.",
+)
 
 df = get_dataset()
 if df.empty:
-    st.warning("No hay datos en `data/`. Ve a la pagina de inicio.")
+    st.warning("No se encontraron espectros en `data/`.")
     st.stop()
 
 files_all, read_errors = file_indices(df)
 if files_all.empty:
-    st.warning("No hay archivos validos para el analisis temporal.")
+    st.warning("No hay espectros válidos para el análisis temporal.")
     st.stop()
 
 ts_qc = qc_flags(leaf_timeseries(files_all))
@@ -79,37 +82,31 @@ species_with_rust = set(files_all.loc[files_all["leaf_type"] == "R", "species"])
 
 
 def _species_label(sp: str) -> str:
-    return sp if sp in species_with_rust else f"{sp} (control, sin roya)"
+    return sp if sp in species_with_rust else f"{sp} · control sin roya"
 
 
 with st.sidebar:
-    st.markdown("**Filtros**")
-    with st.container(border=True):
-        present = [s for s in SPECIES_ORDER if s in set(files_all["species"])]
-        filter_tag("Especie")
-        species = st.selectbox("Especie", present, format_func=_species_label, label_visibility="collapsed", key="sp_sel")
-        leaves_all = sorted(files_all.loc[files_all["species"] == species, "leaf"].unique(), key=_leaf_sort_key)
-        filter_tag("Hoja")
-        sel_leaves = st.multiselect("Hojas", leaves_all, default=leaves_all, label_visibility="collapsed", key=f"leaves_sel_{species}")
-        filter_tag("Eje temporal")
-        x_mode = st.radio(
-            "Eje X", ["Fecha", "Días desde la primera campaña"], label_visibility="collapsed", key="x_mode"
-        )
-    with st.container(border=True):
-        filter_tag("Control de calidad")
-        exclude_qc = st.toggle(
-            "Excluir hojas-fecha atípicas",
-            value=False,
-            key="excl_qc",
-            help=(
-                f"Una hoja-fecha es atípica si {QC_MIN_INDICES} o más de los 7 índices (sin FSR) "
-                f"tienen |robust z| > {QC_Z_UMBRAL} respecto de la propia serie de esa hoja. "
-                "Excluirlas recalcula todo: series, anclas, tendencias y espectros."
-            ),
-        )
+    present = [s for s in SPECIES_ORDER if s in set(files_all["species"])]
+    species = st.selectbox("Variedad", present, format_func=_species_label, key="sp_sel",
+                           help="Afecta a las pestañas «Detalle por hoja» y «Datos y calidad». «Hojas maduras» "
+                                "y «¿Roya o edad?» muestran siempre las variedades susceptibles.")
+    leaves_all = sorted(files_all.loc[files_all["species"] == species, "leaf"].unique(), key=_leaf_sort_key)
+    sel_leaves = st.pills("Hojas", leaves_all, default=leaves_all, selection_mode="multi", key=f"leaves_sel_{species}")
+    x_mode = st.segmented_control("Eje temporal", ["Fecha", "Días desde la primera campaña"], default="Fecha", key="x_mode") or "Fecha"
+    exclude_qc = st.toggle(
+        "Excluir hojas-fecha atípicas",
+        value=False,
+        key="excl_qc",
+        help=(
+            f"Atípica: {QC_MIN_INDICES} o más de los 7 índices con |z robusto| > {QC_Z_UMBRAL} respecto de la "
+            "propia serie de la hoja. Excluirlas recalcula series, anclas, tendencias y espectros."
+        ),
+    )
+sidebar_footer(df)
+sel_leaves = sel_leaves or []
 
 if not sel_leaves:
-    st.info("Selecciona al menos una hoja.")
+    st.info("Elegir al menos una hoja.")
     st.stop()
 
 if exclude_qc and not flagged.empty:
@@ -171,9 +168,9 @@ spec_tr_raw = spectral_trends(spectra_all, ts, T_CERO, False)
 spec_tr_norm = spectral_trends(spectra_all, ts, T_CERO, True)
 
 GRUPOS_ESP = [
-    ("T (tierna al inicio), todas las especies", "T", LEAF_TYPE_COLORS["T"], "solid",
+    ("T (tierna al inicio), todas las variedades", "T", LEAF_TYPE_COLORS["T"], "solid",
      lambda d: d["leaf_type"] == "T"),
-    ("M, especies susceptibles", "M susc.", LEAF_TYPE_COLORS["M"], "solid",
+    ("M, variedades susceptibles", "M susc.", LEAF_TYPE_COLORS["M"], "solid",
      lambda d: (d["leaf_type"] == "M") & d["species"].isin(species_with_rust)),
     ("M, controles sin roya", "M control", "#9AA0A6", "dash",
      lambda d: (d["leaf_type"] == "M") & ~d["species"].isin(species_with_rust)),
@@ -209,103 +206,57 @@ tab_res, tab_mad, tab_edad, tab_det, tab_dat = st.tabs([
 ])
 
 with tab_res:
-    st.caption(
-        "Cada hoja (M1, M2, T1, T2, R1) es **la misma hoja física en todas las campañas**. "
-        "Los puntos de medición no son ubicaciones fijas, así que la unidad es la hoja: se promedian "
-        f"las repeticiones de cada punto y después los puntos (solo p{TEMPORAL_VALID_POINTS[0]}–"
-        f"p{TEMPORAL_VALID_POINTS[-1]}). Las barras muestran ±1 SD **entre puntos** (heterogeneidad "
-        "de la hoja ese día). Metodología completa en `evoluciontemporal.md`."
-    )
+    # ---------- resumen de hallazgos (se recalculan solos con datos nuevos) ----------
+    section("Hallazgos con los datos actuales",
+            "Se recalculan automáticamente al agregar campañas. Todos usan Δ* (cambio corregido por las hojas "
+            "tiernas) y corrección FDR al 5 %.")
+    vis_t = region_slopes(spec_tr_raw, GRUPOS_ESP[0][4], 450, 690)
+    vis_r = region_slopes(spec_tr_raw, GRUPOS_ESP[3][4], 450, 690)
+    vis_tn = region_slopes(spec_tr_norm, GRUPOS_ESP[0][4], 450, 690)
+    vis_rn = region_slopes(spec_tr_norm, GRUPOS_ESP[3][4], 450, 690)
+    if len(vis_t) and len(vis_r):
+        robusto = np.sign(vis_t.median()) == np.sign(vis_tn.median()) and np.sign(vis_r.median()) == np.sign(vis_rn.median())
+        note("hallazgo",
+             f"**Visible (450–690 nm).** Las hojas tiernas cambian {vis_t.median():+.2f} pp por semana "
+             f"({int((vis_t < 0).sum())} de {len(vis_t)} bajan) y R1 {vis_r.median():+.2f} pp por semana "
+             f"({int((vis_r > 0).sum())} de {len(vis_r)} suben). "
+             + ("La maduración oscurece el visible y la roya lo aclara. " if vis_t.median() < 0 < vis_r.median() else "")
+             + ("El resultado se mantiene al normalizar por la meseta NIR." if robusto
+                else "El resultado **no** se mantiene al normalizar por la meseta NIR: leer con cautela."))
+    res_star = index_change_summary(trends_star, species_with_rust)
+    env = res_star[res_star["Lectura"].str.contains("Envejecimiento")]["Índice"].tolist()
+    solo_r = res_star[res_star["Lectura"].str.contains("solo en la hoja con roya")]["Índice"].tolist()
+    if env:
+        note("hallazgo", f"**Cambian con la edad de la hoja madura**, también en los controles sin roya: {', '.join(env)}.")
+    note("hallazgo", f"**Cambian solo en la hoja con roya:** {', '.join(solo_r)}." if solo_r
+         else "**Ningún índice cambia de forma significativa solo en la hoja con roya.**")
+    tm = m_trend_table(trends_star)
+    if not tm.empty:
+        cand = tm[tm["Lectura"].str.startswith("Candidata")]
+        compat = tm[tm["Lectura"].str.startswith("Compatible")]
+        hojas_c = sorted(set(compat["Especie"] + " " + compat["Hoja"]))
+        note("hallazgo",
+             f"**Hojas maduras susceptibles:** {len(cand)} tendencias candidatas a roya (ausentes en los controles) y "
+             f"{len(compat)} compatibles con envejecimiento" + (f" ({', '.join(hojas_c)})" if hojas_c else "") + ".")
+    note("limite", "Una sola hoja con roya por variedad, ya infectada en su primera medición (15/07); la fecha de "
+                   "infección no se conoce. Esto describe trayectorias de hojas concretas y no permite todavía predecir la roya.")
 
-    with st.expander("📖 Términos técnicos en lenguaje llano"):
-        st.markdown(
-            """
-- **Cambio corregido por hojas T (Δ\\*)**: cuánto cambió una hoja desde su primera medición, menos lo que
-  cambiaron ese mismo día las hojas tiernas de la misma especie. Quita el "ruido común" (luz, calibración, estación).
-- **Significativa tras corregir por pruebas múltiples (FDR 5 %)**: como se prueban muchas series a la vez,
-  algunas saldrían "significativas" por azar; la corrección de Benjamini-Hochberg lo controla.
-- **Pendiente de Theil-Sen**: la tendencia por semana calculada con la mediana de todas las pendientes entre
-  pares de fechas; no la arrastra un valor extraño. **Mann-Kendall**: prueba si la tendencia es consistente.
-- **Atípica (|robust z|)**: una hoja-fecha cuyos índices se alejan mucho de la propia serie de esa hoja
-  (medida con mediana y MAD en lugar de media y desviación).
-- **S1 / S2 / U**: tres formas de fijar las anclas de la similitud con roya (ver «Detalle por hoja»).
-- **Autocorrelación (`r1 residuos`)**: las mediciones sucesivas de una hoja se parecen entre sí, por lo que
-  el p-valor es más optimista de lo que parece.
+    section("Cómo leer esta vista")
+    st.markdown(
+        f"""
+- **Unidad:** la hoja-fecha. Se promedian las repeticiones de cada punto y luego los puntos p{TEMPORAL_VALID_POINTS[0]}–p{TEMPORAL_VALID_POINTS[-1]}; las barras de error son ±1 DE **entre puntos** (heterogeneidad de la hoja ese día).
+- **Las hojas envejecen:** T1 y T2 eran tiernas el 29/06 y son las mismas hojas doce semanas después. Por eso existen Δ\* y los controles sin roya (Canefora, Cuscatleco).
+- **Mediciones sucesivas no son independientes:** los p-valores de tendencia son optimistas; se informa la autocorrelación de residuos como diagnóstico.
+- **La similitud de esta vista usa por defecto otras anclas (S1)** que «Estado actual»: el ancla tierna son las hojas T de las {TEMPORAL_BASELINE_CAMPAIGNS} primeras campañas. La opción U reproduce la de toda la aplicación.
+- Términos técnicos (Δ\*, FDR, Theil–Sen, S1/S2/U): ver «Método y glosario».
 """
-        )
-
-    with st.expander("ℹ️ Cómo leer esta página y qué NO se puede concluir"):
-        st.markdown(
-            f"""
-    - **n = 1 hoja con roya por especie.** Todo lo que se ve de R1 describe la trayectoria de *esa*
-      hoja, no un efecto de la roya en la población.
-    - **La fecha de infección no se conoce.** "Día 0" de R1 es su primera medición (15/07), no el
-      inicio de la roya.
-    - **Las hojas envejecen.** T1/T2 eran tiernas el 29/06 y son las mismas hojas 12 semanas después.
-      Una tendencia en M o T puede ser maduración, no roya: por eso existen **Δ\\*** y los
-      **controles** (Canefora y Cuscatleco, sin roya).
-    - **Mediciones sucesivas de una misma hoja no son independientes.** Los p-valores de tendencia
-      son optimistas; se reporta la autocorrelación de residuos como diagnóstico.
-    - **Esta similitud ≠ la de la página 4.** Aquí el ancla sana son las hojas T en las
-      {TEMPORAL_BASELINE_CAMPAIGNS} primeras campañas y cada fecha pesa igual en el ancla con roya
-      (ver «Similitud relativa con roya en el tiempo», pestaña Detalle por hoja).
-    - **FSR ≡ NDVI** (mismas bandas): se grafica, pero no entra en tendencias, distancia ni control
-      de calidad.
-    """
-        )
-
-    # ---------- resumen de hallazgos ----------
-    with st.container(border=True):
-        st.markdown("**Hallazgos principales** — se recalculan solos cuando entran datos nuevos")
-        bullets = []
-        vis_t = region_slopes(spec_tr_raw, GRUPOS_ESP[0][4], 450, 690)
-        vis_r = region_slopes(spec_tr_raw, GRUPOS_ESP[3][4], 450, 690)
-        vis_tn = region_slopes(spec_tr_norm, GRUPOS_ESP[0][4], 450, 690)
-        vis_rn = region_slopes(spec_tr_norm, GRUPOS_ESP[3][4], 450, 690)
-        if len(vis_t) and len(vis_r):
-            robusto = np.sign(vis_t.median()) == np.sign(vis_tn.median()) and np.sign(vis_r.median()) == np.sign(vis_rn.median())
-            bullets.append(
-                f"**Visible (450–690 nm):** las hojas tiernas cambian {vis_t.median():+.2f} pp/semana "
-                f"({int((vis_t < 0).sum())}/{len(vis_t)} bajan) y R1 {vis_r.median():+.2f} pp/semana "
-                f"({int((vis_r > 0).sum())}/{len(vis_r)} suben). "
-                + ("Direcciones opuestas: la maduración oscurece el visible y la roya lo aclara. "
-                   if vis_t.median() < 0 < vis_r.median() else "")
-                + ("Se mantiene al normalizar por el NIR." if robusto else "**No** se mantiene al normalizar por el NIR: leer con cautela.")
-            )
-        res_star = index_change_summary(trends_star, species_with_rust)
-        env = res_star[res_star["Lectura"].str.contains("Envejecimiento")]["Índice"].tolist()
-        solo_r = res_star[res_star["Lectura"].str.contains("solo en la hoja con roya")]["Índice"].tolist()
-        if env:
-            bullets.append(f"**Índices que cambian con la edad de la hoja madura** (también en controles sin roya, Δ*): {', '.join(env)}.")
-        bullets.append(
-            f"**Índices que cambian solo en la hoja con roya** (Δ*): {', '.join(solo_r)}." if solo_r
-            else "**Ningún índice cambia de forma significativa solo en la hoja con roya** (Δ*, FDR 5 %)."
-        )
-        tm = m_trend_table(trends_star)
-        if not tm.empty:
-            cand = tm[tm["Lectura"].str.startswith("Candidata")]
-            compat = tm[tm["Lectura"].str.startswith("Compatible")]
-            hojas_c = sorted(set(compat["Especie"] + " " + compat["Hoja"]))
-            bullets.append(
-                f"**Hojas maduras susceptibles:** {len(cand)} tendencia(s) candidata(s) a roya y {len(compat)} "
-                f"compatible(s) con envejecimiento" + (f" ({', '.join(hojas_c)})" if hojas_c else "") + " (Δ*)."
-            )
-        bullets.append(
-            "**Límites:** una sola hoja con roya por especie, ya infectada en su primera medición; la fecha de "
-            "infección no se conoce. Esto describe trayectorias, no permite todavía predecir la roya."
-        )
-        for b in bullets:
-            st.markdown(f"- {b}")
+    )
 
 with tab_mad:
-    st.subheader(f"Hojas maduras (M) de las especies susceptibles: {' y '.join(SUSCEPTIBLES)}")
-    st.caption(
-        "**Es el foco de la página.** La hoja madura es la de estado sanitario desconocido: es donde "
-        "una infección todavía sin síntomas tendría que aparecer. M1 y M2 van en primer plano; como "
-        "referencia, la banda verde es el rango de las hojas T de la misma especie (sanas al inicio) y "
-        "la línea naranja punteada es R1 (hoja con roya). Esta pestaña muestra siempre las dos especies "
-        "susceptibles, sin importar la especie elegida en la barra lateral."
-    )
+    section(f"Hojas maduras de {' y '.join(SUSCEPTIBLES)}",
+            "La hoja madura es la de estado desconocido: donde una infección todavía sin síntomas tendría que "
+            "aparecer. M1 y M2 en primer plano; la banda es el rango de las hojas tiernas de la misma variedad y la "
+            "línea punteada, R1. Esta pestaña muestra siempre las dos variedades susceptibles.")
 
     MODOS = {
         "Valor": ("", "Valor del índice, sin anclas ni modelos. Es la vista más defendible."),
@@ -314,13 +265,13 @@ with tab_mad:
         ),
         "Cambio corregido por hojas T (Δ*)": (
             DELTA_STAR,
-            "Δ menos la mediana de Δ de las hojas T de la misma especie ese día. Resta la deriva común "
+            "Δ menos la mediana de Δ de las hojas T de la misma variedad ese día. Resta la deriva común "
             "(luz, calibración, estación) y también la maduración normal: es conservador a propósito.",
         ),
     }
 
     c1, c2 = st.columns([1, 2])
-    index_sel = c1.selectbox("Índice", INDICES, index=INDICES.index("mNDVI705"), key="index_sel")
+    index_sel = c1.selectbox("Índice", DIST_INDICES, index=DIST_INDICES.index("mNDVI705"), key="index_sel")
     modo = c2.radio("Modo", list(MODOS), horizontal=True, key="modo_sel")
     prefijo, explicacion = MODOS[modo]
     st.caption(explicacion)
@@ -343,7 +294,7 @@ with tab_mad:
             k += 1
 
     tab_idx, tab_sev, tab_dist, tab_all = st.tabs(
-        [f"{index_sel} en el tiempo", "Similitud relativa con roya", "Distancia a R1", "Los 8 índices"]
+        [f"{index_sel} en el tiempo", "Similitud relativa con roya", "Distancia a R1", "Los 7 índices"]
     )
     with tab_idx:
         if prefijo:
@@ -359,7 +310,7 @@ with tab_mad:
         fig = m_panels(ts_gaps, prefijo + index_sel, f"{modo}: {index_sel}",
                        sdcol=f"sd {index_sel}" if not (prefijo or ver_pts) else None, zero_line=bool(prefijo),
                        pts_col=index_sel if ver_pts else None, worst_col=PEOR + index_sel if ver_peor else None)
-        st.plotly_chart(fig, width="stretch")
+        chart(fig)
     with tab_sev:
         st.caption(
             "Similitud relativa con roya con anclas S1: 0 % = hojas T en las primeras campañas, 100 % = promedio de "
@@ -367,7 +318,7 @@ with tab_mad:
         )
         fig = m_panels(sev_gaps, "sev_S1", "Similitud relativa con roya (%)", scale=100, risk_lines=True)
         fig.update_yaxes(range=[-3, 105])
-        st.plotly_chart(fig, width="stretch")
+        chart(fig)
     with tab_dist:
         st.caption(
             "Distancia RMS en z-scores (sin FSR) entre cada hoja y R1 **el mismo día**. Más baja = más "
@@ -379,25 +330,27 @@ with tab_mad:
         else:
             fig = m_panels(dist_gaps, "distancia", "Distancia a R1 (z RMS)", show_rust=False)
             fig.update_yaxes(rangemode="tozero")
-            st.plotly_chart(fig, width="stretch")
+            chart(fig)
     with tab_all:
-        fig = make_subplots(rows=len(INDICES), cols=len(SUSCEPTIBLES), shared_xaxes=True, shared_yaxes=True,
-                            subplot_titles=[f"{sp} · {idx}" for idx in INDICES for sp in SUSCEPTIBLES],
+        fig = make_subplots(rows=len(DIST_INDICES), cols=len(SUSCEPTIBLES), shared_xaxes=True, shared_yaxes=True,
+                            subplot_titles=[f"{sp} · {idx}" for idx in DIST_INDICES for sp in SUSCEPTIBLES],
                             vertical_spacing=0.035, horizontal_spacing=0.04)
-        for i, idx in enumerate(INDICES, start=1):
-            m_panels(ts_gaps, prefijo + idx, idx, zero_line=bool(prefijo), rows=len(INDICES), row=i, fig=fig)
+        for i, idx in enumerate(DIST_INDICES, start=1):
+            m_panels(ts_gaps, prefijo + idx, idx, zero_line=bool(prefijo), rows=len(DIST_INDICES), row=i, fig=fig)
         style_time_axis(fig, 1900)
         fig.update_xaxes(title_text=None)
         for ann in fig.layout.annotations:
             ann.font.size = 11
-        st.plotly_chart(fig, width="stretch")
+        chart(fig)
 
-    st.markdown("**¿Las hojas maduras cambian con el tiempo, y ese cambio es propio de la especie susceptible?**")
+    section("¿El cambio de las maduras es propio de la variedad susceptible?",
+            "Cada tendencia de una hoja madura de Bourbon o Pacamara se contrasta con las hojas maduras de los controles "
+            "sin roya. Si un control cambia igual, la explicación más simple es la edad de la hoja o la estación.")
     fam_m = st.radio("Tendencia calculada sobre", list(FAMILIAS), horizontal=True, help=FAM_AYUDA, key="fam_m")
     tabla_m = m_trend_table(trends_fam[fam_m])
     if fam_m != "Cambio corregido por hojas T (Δ*)":
         st.caption(
-            "⚠ Una \"candidata\" en esta familia debe contrastarse con Δ* y con el promedio: si la misma hoja "
+            "Una «candidata» en esta familia debe contrastarse con Δ* y con el promedio: si la misma hoja "
             "ya coincide con un control en el promedio (p. ej. Bourbon M1 en NDVI), la explicación más simple "
             "sigue siendo el envejecimiento."
         )
@@ -424,12 +377,12 @@ with tab_mad:
     )
 
 with tab_edad:
-    st.subheader("¿Qué cambia con el tiempo? Envejecimiento frente a roya")
+    section("¿Qué cambia con el tiempo? Envejecimiento frente a roya")
     st.caption(
         "Tendencia de **cada longitud de onda** (pendiente de Theil-Sen, en puntos de reflectancia por "
         "semana) calculada hoja por hoja sobre su espectro medio, y resumida por grupo con la mediana "
         "entre hojas (banda = rango intercuartil cuando el grupo tiene 3 hojas o más). Por encima de 0, "
-        "esa región del espectro sube con las semanas; por debajo, baja. No depende de los 8 índices: "
+        "esa región del espectro sube con las semanas; por debajo, baja. No depende de los 7 índices: "
         "muestra dónde ocurre el cambio."
     )
     c1, c2 = st.columns(2)
@@ -492,7 +445,7 @@ with tab_edad:
                           xaxis_title="Longitud de onda (nm)", yaxis_title=f"Tendencia ({unidad})")
         fig.update_xaxes(gridcolor=GRID)
         fig.update_yaxes(gridcolor=GRID, zeroline=False)
-        st.plotly_chart(fig, width="stretch")
+        chart(fig)
 
         st.markdown("**Resumen por región del espectro**")
         st.dataframe(region_table(spec_tr, GRUPOS_ESP, REGIONES), width="stretch")
@@ -520,7 +473,7 @@ with tab_edad:
         fig.update_layout(height=max(360, 26 * len(mat) + 100), margin=dict(t=20, b=10),
                           xaxis_title="Longitud de onda (nm)",
                           yaxis=dict(autorange="reversed", tickfont=dict(size=11)))
-        st.plotly_chart(fig, width="stretch")
+        chart(fig)
         st.caption(
             "Una fila por hoja con al menos "
             f"{TEMPORAL_MIN_FECHAS_TENDENCIA} fechas, ordenadas por grupo: tiernas, maduras susceptibles, "
@@ -545,7 +498,7 @@ with tab_edad:
         )
 
     # ---------- 3. roya frente a envejecimiento ----------
-    st.subheader("La misma hoja semana a semana: roya (R1) frente a envejecimiento (hoja tierna)")
+    section("La misma hoja semana a semana: R1 frente a una hoja tierna")
     st.caption(
         "Todos los espectros medios de una misma hoja, uno por fecha, con el color de más apagado (primera "
         "fecha) a más brillante (última). Abajo, el cambio de cada fecha respecto de la primera medición. "
@@ -618,7 +571,7 @@ with tab_edad:
     fig.update_xaxes(title_text="Longitud de onda (nm)", row=2 * len(SUSCEPTIBLES), col=2)
     for ann in fig.layout.annotations:
         ann.font.size = 12
-    st.plotly_chart(fig, width="stretch")
+    chart(fig)
 
     lectura_s3 = []
     for sp in SUSCEPTIBLES:
@@ -632,10 +585,10 @@ with tab_edad:
         st.caption("Tendencia (Theil-Sen, sin normalizar): " + " · ".join(lectura_s3) + ".")
 
 with tab_dat:
-    st.subheader("Ficha de datos")
+    section("Ficha de datos")
     st.caption(
-        "Puntos válidos por hoja y fecha. **—** = la especie tuvo campaña pero la hoja no se midió "
-        "(hueco, no se interpola). **⚠** = hoja-fecha marcada por el control de calidad."
+        "Puntos válidos por hoja y fecha. **—** = la variedad tuvo campaña pero la hoja no se midió "
+        "(hueco, no se interpola). **\\*** = hoja-fecha marcada por el control de calidad."
     )
 
     ficha_src = ts_gaps[ts_gaps["species"] == species]
@@ -649,32 +602,31 @@ with tab_dat:
         else:
             txt = str(int(r.n_puntos))
             if r.qc_atipico is True:
-                txt += " ⚠"
+                txt += " *"
             ficha.loc[r.leaf, col] = txt
     st.dataframe(ficha, width="stretch")
 
     sel_sp = temporal_selection(df[df["species"] == species])
     excl = sel_sp["motivo_exclusion"].value_counts()
-    notas = [f"**{n}** archivo(s) excluido(s): {m}" for m, n in excl.items()]
+    notas = [f"**{n}** {'espectro excluido' if n == 1 else 'espectros excluidos'}: {m}" for m, n in excl.items()]
     qc_sp = ts_qc[(ts_qc["species"] == species) & ts_qc["qc_atipico"]]
     for r in qc_sp.itertuples():
         notas.append(
-            f"⚠ **{r.leaf} el {r.campaign_date:%d/%m}**: {int(r.qc_n_atipicos)} de 7 índices atípicos "
+            f"**{r.leaf} el {r.campaign_date:%d/%m}**: {int(r.qc_n_atipicos)} de 7 índices atípicos "
             f"respecto de su propia serie — {'**excluida**' if exclude_qc else 'incluida (activa el control de calidad para excluirla)'}."
         )
     incompletas = ts[(ts["species"] == species) & (ts["n_puntos"] < len(TEMPORAL_VALID_POINTS))]
     for r in incompletas.itertuples():
-        notas.append(f"{r.leaf} el {r.campaign_date:%d/%m}: solo {int(r.n_puntos)} punto(s) medido(s).")
+        notas.append(f"{r.leaf} el {r.campaign_date:%d/%m}: solo {int(r.n_puntos)} {'punto medido' if int(r.n_puntos) == 1 else 'puntos medidos'}.")
     if read_errors:
-        notas.append(f"{len(read_errors)} archivo(s) con error de lectura en todo el dataset.")
+        notas.append(f"{len(read_errors)} espectros con error de lectura en todo el conjunto de datos.")
     if notas:
         with st.container(border=True):
             for n in notas:
                 st.markdown(f"- {n}")
 
     with st.container(border=True):
-        render_index_legend(INDEX_DEFINITIONS)
-        st.subheader("Serie por hoja y fecha")
+        section("Serie por hoja y fecha")
         st.caption("Una fila por hoja y fecha (media de puntos). Incluye Δ, Δ*, similitud S1/S2 y el control de calidad.")
         sev_full = severity_timeseries(files, anchors, clip=True)
         out = ts.merge(sev_full[["leaf_id", "campaign_date", "sev_S1", "sev_S2"]], on=["leaf_id", "campaign_date"], how="left")
@@ -694,7 +646,7 @@ with tab_dat:
         out_all = out.copy()
         out_all["campaign_date"] = out_all["campaign_date"].dt.strftime("%Y-%m-%d")
         st.download_button(
-            "Descargar CSV (todas las especies, todas las columnas)",
+            "Descargar CSV (todas las variedades, todas las columnas)",
             out_all.to_csv(index=False).encode("utf-8"),
             file_name="evolucion_temporal_hojas.csv",
             mime="text/csv",
@@ -702,45 +654,44 @@ with tab_dat:
         )
 
 with tab_det:
-    st.markdown(f"### Detalle por especie: {_species_label(species)}")
-    st.caption("Esta pestaña usa la especie y las hojas elegidas en la barra lateral.")
+    section(f"Detalle de {_species_label(species)}", "Usa la variedad y las hojas elegidas en la barra lateral.")
 
     if sp_ts.empty:
         st.info("No hay datos para las hojas seleccionadas.")
         st.stop()
 
-    st.subheader("Índices en el tiempo")
+    section("Índices en el tiempo")
     st.caption(f"Índice y modo elegidos en la pestaña «Hojas maduras»: **{index_sel}**, **{modo}**. {explicacion}")
     if prefijo == DELTA_STAR and species == "Canefora":
         st.info("Canefora tiene una sola hoja T en la mayoría de las fechas: su Δ* es 0 por definición.")
 
-    tab_uno, tab_todos = st.tabs(["Un índice", "Los 8 índices"])
+    tab_uno, tab_todos = st.tabs(["Un índice", "Los 7 índices"])
     with tab_uno:
         fig = go.Figure()
         add_leaf_lines(fig, sp_ts, prefijo + index_sel, sdcol=f"sd {index_sel}")
         if prefijo:
             fig.add_hline(y=0, line_width=1, line_color="rgba(200,200,200,0.4)")
         style_time_axis(fig, 460, yaxis_title=f"{modo}: {index_sel}")
-        st.plotly_chart(fig, width="stretch")
+        chart(fig)
 
     with tab_todos:
-        fig = make_subplots(rows=4, cols=2, shared_xaxes=True, subplot_titles=INDICES,
+        fig = make_subplots(rows=4, cols=2, shared_xaxes=True, subplot_titles=DIST_INDICES,
                             vertical_spacing=0.07, horizontal_spacing=0.07)
-        for i, idx in enumerate(INDICES):
+        for i, idx in enumerate(DIST_INDICES):
             add_leaf_lines(fig, sp_ts, prefijo + idx, row=i // 2 + 1, col=i % 2 + 1,
                            showlegend=(i == 0), direct_labels=False)
             if prefijo:
                 fig.add_hline(y=0, line_width=1, line_color="rgba(200,200,200,0.4)", row=i // 2 + 1, col=i % 2 + 1)
         style_time_axis(fig, 1000)
         fig.update_xaxes(title_text=None)
-        st.plotly_chart(fig, width="stretch")
+        chart(fig)
 
     # ---------- 4. tendencias ----------
-    st.subheader("Tendencias por hoja")
+    section("Tendencias por hoja")
     st.caption(
         f"Pendiente de Theil-Sen (unidades del índice por semana, IC 95 %) y test de Mann-Kendall, "
         f"por hoja e índice, con al menos {TEMPORAL_MIN_FECHAS_TENDENCIA} fechas. La corrección de "
-        "Benjamini-Hochberg se aplica sobre **todas las especies y hojas a la vez**, así que el p "
+        "Benjamini-Hochberg se aplica sobre **todas las variedades y hojas a la vez**, así que el p "
         "corregido no cambia al mover los filtros. Sin FSR (idéntico a NDVI)."
     )
 
@@ -750,7 +701,7 @@ with tab_det:
     evaluadas = trends[trends["p"].notna()]
     ctrl = evaluadas[~evaluadas["Especie"].isin(species_with_rust)]
     m1, m2, m3 = st.columns(3)
-    m1.metric("Series evaluadas (todas las especies)", len(evaluadas), border=True)
+    m1.metric("Series evaluadas (todas las variedades)", len(evaluadas), border=True)
     m2.metric("Con tendencia significativa (FDR 5 %)", int(evaluadas["Significativa"].sum()), border=True)
     m3.metric(
         "Controles sin roya con tendencia",
@@ -798,7 +749,7 @@ with tab_det:
             yaxis=dict(type="category", categoryorder="array", categoryarray=forest["etiqueta"].tolist()),
         )
         fig.update_xaxes(gridcolor=GRID, zeroline=False)
-        st.plotly_chart(fig, width="stretch")
+        chart(fig)
     elif index_sel == "FSR":
         st.caption("FSR no tiene tendencia propia (es idéntico a NDVI): elige otro índice para el gráfico de pendientes.")
 
@@ -818,25 +769,20 @@ with tab_det:
     st.caption(
         "**Se puede decir:** \"la hoja R1 de Bourbon muestra una tendencia monótona en X, ausente en "
         "sus hojas T y en los controles\". **No se puede decir:** \"la roya cambia X a razón de Y por "
-        "semana\" (n = 1 hoja enferma, mediciones autocorrelacionadas). `r1 residuos` > 0,5 marca "
+        "semana\" (n = 1 hoja enferma, mediciones autocorrelacionadas). `r1 residuos` > 0.5 marca "
         "series con autocorrelación fuerte, donde el p-valor es especialmente optimista."
     )
 
     # ---------- similitud relativa ----------
-    st.subheader("Similitud relativa con roya en el tiempo")
-    st.caption(
-        "**\"Similitud unificada\" es el mismo numero que la pagina 4 y Telegram** (ancla sana = "
-        "todas las hojas T, ponderada por fecha, sin las hojas-fecha atipicas). **S1/S2 son propias "
-        "de esta pagina**: usan solo las 2 primeras campañas como ancla sana, precisamente porque "
-        "las hojas T envejecen 12 semanas y una ancla con todas las fechas mezclaria hoja tierna con "
-        "hoja casi madura — es la eleccion correcta para *esta* pregunta (evolucion), aunque no sea "
-        "la misma ancla que usa el resto de la app para el estado *actual* de una hoja."
-    )
+    section("Similitud con roya en el tiempo",
+            "S1 y S2 son las anclas de esta vista: el ancla tierna usa solo las 2 primeras campañas, porque las hojas "
+            "tiernas envejecen durante el estudio y un ancla con todas las fechas mezclaría tejido tierno con casi "
+            "maduro. U es la similitud del resto de la aplicación (mismo número que «Estado actual» y la alerta).")
     c1, c2 = st.columns([2, 1])
     ancla = c1.radio(
         "Anclas",
-        ["S1 — congeladas (recomendada aqui)", "S2 — sin la fecha evaluada (sensibilidad)",
-         "U — similitud unificada (igual a Telegram/pág. 4)"],
+        ["S1 · congeladas (recomendada aquí)", "S2 · sin la fecha evaluada (sensibilidad)",
+         "U · la de toda la aplicación"],
         horizontal=True, key="ancla_sel",
         help="S1: ancla con roya = media de todas las fechas de R, ancla sana = T en las primeras "
              "campañas. S2: para cada fecha, el ancla con roya se calcula sin esa fecha "
@@ -846,17 +792,16 @@ with tab_det:
     ancla_code = ancla.split()[0]  # "S1", "S2" o "U"
     sev_col = {"S1": "sev_S1", "S2": "sev_S2", "U": "sev_U"}[ancla_code]
     if ancla_code == "U" and sin_recorte:
-        st.caption("La similitud unificada siempre esta recortada a 0-100 % (ignora 'sin recorte').")
+        st.caption("La similitud U siempre está recortada a 0–100 %.")
 
-    st.warning(
-        "**Circularidad (S1/S2):** en Bourbon y Pacamara la única hoja con roya es R1, así que el "
+    note("limite",
+        "**Circularidad.** en Bourbon y Pacamara la única hoja con roya es R1, así que el "
         "ancla \"con roya\" *es* el promedio de R1 en el tiempo. La similitud de R1 contra su propio "
         "promedio tiende a quedar alrededor del 100 % por construcción. S2 lo atenúa pero no lo "
         "elimina, y U tiene el mismo problema de fondo (una sola hoja define su propia referencia). "
-        "Úsala para comparar hojas entre sí, no como medida absoluta de progresión."
-    )
+        "Sirve para comparar hojas entre sí, no como medida absoluta de progresión.")
     if species not in species_with_rust:
-        st.info(f"{species} no tiene hoja con roya: el ancla con roya es la media de las especies que sí tienen (referencia estimada).")
+        st.info(f"{species} no tiene hoja con roya: el ancla con roya es la media de las variedades que sí tienen (referencia estimada).")
 
     sev = severity_timeseries(files, anchors, clip=not sin_recorte)
     sev_sp = sev[(sev["species"] == species) & sev["leaf"].isin(sel_leaves)]
@@ -887,7 +832,7 @@ with tab_det:
     style_time_axis(fig, 440, yaxis_title="Similitud relativa con roya (%)")
     if not sin_recorte:
         fig.update_yaxes(range=[-3, 105])
-    st.plotly_chart(fig, width="stretch")
+    chart(fig)
 
     r1 = sev_sp[sev_sp["leaf_type"] == "R"].sort_values("campaign_date")
     if not r1.empty:
@@ -903,11 +848,11 @@ with tab_det:
             st.dataframe(comp, hide_index=True, width="stretch",
                          column_config={c: st.column_config.NumberColumn(c, format="%.1f") for c in comp.columns[2:]})
 
-    with st.expander("Anclas usadas para esta especie"):
+    with st.expander("Anclas usadas para esta variedad"):
         fechas_sana = anchors["fechas_ancla_sana"].get(species, [])
         st.markdown(
             f"Ancla sana: hojas T en {', '.join(f'{pd.Timestamp(f):%d/%m}' for f in fechas_sana)}. "
-            f"Ancla con roya: {'hoja R propia' if anchors['referencia_propia'].get(species) else 'media de las especies con roya'} "
+            f"Ancla con roya: {'hoja R propia' if anchors['referencia_propia'].get(species) else 'media de las variedades con roya'} "
             "(cada fecha pesa igual)."
         )
         if species in anchors["sana"].index:
@@ -917,7 +862,7 @@ with tab_det:
             )
 
     # ---------- 6. distancia a R1 ----------
-    st.subheader("Distancia espectral a la hoja con roya")
+    section("Distancia espectral a la hoja con roya")
     if species not in species_with_rust:
         st.info(f"{species} no tiene hoja con roya: no hay contra qué medir la distancia.")
     else:
@@ -930,7 +875,7 @@ with tab_det:
         dist = dist_all
         dist_sp = dist[(dist["species"] == species) & dist["leaf"].isin(sel_leaves)]
         if dist_sp.empty:
-            st.info("Selecciona alguna hoja M o T.")
+            st.info("Elegir alguna hoja madura o tierna.")
         else:
             dist_plot = with_gaps(
                 dist_sp.merge(ts[["leaf_id", "campaign_date", "n_puntos", "qc_atipico"]],
@@ -941,18 +886,18 @@ with tab_det:
             add_leaf_lines(fig, dist_plot, "distancia")
             style_time_axis(fig, 400, yaxis_title="Distancia a R1 (z RMS)")
             fig.update_yaxes(rangemode="tozero")
-            st.plotly_chart(fig, width="stretch")
+            chart(fig)
             qc_r = ts_qc[(ts_qc["species"] == species) & (ts_qc["leaf_type"] == "R") & ts_qc["qc_atipico"]]
             if not qc_r.empty and not exclude_qc:
                 fechas_r = ", ".join(f"{d:%d/%m}" for d in qc_r["campaign_date"])
                 st.caption(
-                    f"⚠ R1 está marcada como atípica el {fechas_r}: ese día **todas** las hojas se alejan de "
+                    f"R1 está marcada como atípica el {fechas_r}: ese día **todas** las hojas se alejan de "
                     "R1 a la vez, lo que indica un problema de R1, no de las demás. Activa el control de "
                     "calidad para excluirla."
                 )
 
     # ---------- 7. animacion del espectro ----------
-    st.subheader("Espectro de reflectancia a lo largo de las semanas")
+    section("Espectro de reflectancia a lo largo de las semanas")
     st.caption(
         "Espectro medio de cada hoja por fecha (media de repeticiones por punto, luego media de "
         "puntos) sobre una grilla común a todas las fechas. La curva gris punteada es la misma hoja en "
@@ -1052,7 +997,7 @@ with tab_det:
             title=dict(text=_titulo(fechas[0]), font=dict(size=14), y=0.985, yref="container", yanchor="top"),
             legend=dict(orientation="h", yanchor="bottom", y=1.01, x=0, font=dict(size=11)),
             updatemenus=[dict(
-                type="buttons", direction="left", x=0, y=-0.08, xanchor="left", yanchor="top", showactive=False,
+                type="buttons", direction="left", x=0, y=-0.08, xanchor="left", yanchor="top", showactive=False, bgcolor="#1B1C1B", bordercolor="#3A3B38", font=dict(color="#ECEBE6", size=12),
                 buttons=[
                     dict(label="▶ Reproducir", method="animate", args=[None, play]),
                     dict(label="⏸ Pausa", method="animate",
@@ -1060,7 +1005,7 @@ with tab_det:
                 ],
             )],
             sliders=[dict(
-                active=0, x=0.2, y=-0.06, len=0.8, currentvalue=dict(prefix="Fecha: ", font=dict(size=12)),
+                active=0, x=0.2, y=-0.06, len=0.8, currentvalue=dict(prefix="Fecha: ", font=dict(size=12, color="#ECEBE6")), bgcolor="#3A3B38", activebgcolor="#D9D6CC", bordercolor="#3A3B38", tickcolor="#3A3B38", font=dict(color="#8E8C85", size=11),
                 steps=[dict(label=fr.name, method="animate",
                             args=[[fr.name], dict(mode="immediate", frame=dict(duration=0, redraw=True),
                                                    transition=dict(duration=0))])
@@ -1072,6 +1017,6 @@ with tab_det:
         fig.update_yaxes(title_text="Δ vs. 1ª medición (pp)", range=[-dmax, dmax], gridcolor=GRID, row=2, col=1)
         fig.update_xaxes(gridcolor=GRID)
         fig.update_xaxes(title_text="Longitud de onda (nm)", row=2, col=1)
-        st.plotly_chart(fig, width="stretch")
+        chart(fig)
     else:
-        st.info("Elige al menos una hoja para la animación.")
+        st.info("Elegir al menos una hoja para la animación.")

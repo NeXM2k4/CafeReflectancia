@@ -20,11 +20,28 @@ from statsmodels.stats.multitest import multipletests
 
 from src.config import ALPHA_SIGNIFICANCE
 
-# Umbrales de |delta de Cliff| para el veredicto en palabras (Romano et al. 2006: 0.11/0.28/0.43
-# para pequeño/mediano/grande: se redondea a un criterio mas simple de comunicar, sin cambiar el
-# orden de magnitud: "clara" ~ grande, "moderada" ~ mediana, "debil" ~ pequeña).
-_DELTA_CLARA = 0.66
-_DELTA_MODERADA = 0.33
+# Umbrales de |delta de Cliff| de Romano et al. (2006): < 0.147 despreciable, < 0.33 pequeño,
+# < 0.474 mediano, >= 0.474 grande. Son los que usa toda la app (tabla por pares y veredicto).
+_DELTA_GRANDE = 0.474
+_DELTA_MEDIANO = 0.33
+_DELTA_PEQUENO = 0.147
+# Nombres historicos, usados por `_verdict()`.
+_DELTA_CLARA = _DELTA_GRANDE
+_DELTA_MODERADA = _DELTA_MEDIANO
+
+
+def effect_label(delta: float) -> str:
+    """Magnitud del delta de Cliff en palabras (Romano et al. 2006)."""
+    if delta is None or np.isnan(delta):
+        return "—"
+    m = abs(delta)
+    if m >= _DELTA_GRANDE:
+        return "grande"
+    if m >= _DELTA_MEDIANO:
+        return "mediano"
+    if m >= _DELTA_PEQUENO:
+        return "pequeño"
+    return "despreciable"
 
 
 def cliffs_delta(a, b) -> float:
@@ -50,7 +67,7 @@ def _verdict(p: float | None, delta: float | None, n_groups: int, alpha: float) 
         return "Separa claramente los grupos"
     if mag >= _DELTA_MODERADA:
         return "Diferencia moderada"
-    return "Diferencia débil (estadísticamente significativa, pero el solape es grande)"
+    return "Diferencia débil"
 
 
 def summarize_indices(
@@ -112,6 +129,47 @@ def summarize_indices(
         for p_holm, delta, n_g in zip(out["p (Holm)"], out["Efecto (δ Cliff)"], out["_n_grupos"])
     ]
     return out.drop(columns="_n_grupos")
+
+
+def pairwise_effects(
+    data: pd.DataFrame, group_col: str, indices: list[str], pairs: list[tuple[str, str]] | None = None,
+    alpha: float = ALPHA_SIGNIFICANCE,
+) -> pd.DataFrame:
+    """Comparacion por pares: una fila por (indice, par de grupos).
+
+    Para cada par `(a, b)`: n de cada grupo, medianas, delta de Cliff de `a` frente a `b` (positivo
+    si `a` tiende a valores mas altos), p de Mann-Whitney U bilateral y p ajustado por Holm sobre
+    **todas** las filas de la tabla (indices x pares). Es el desglose de lo que Kruskal-Wallis solo
+    dice en bloque ("algun grupo difiere"). Las filas de entrada deben ser hojas-fecha.
+    """
+    grupos = [g for g in data[group_col].dropna().unique()]
+    if pairs is None:
+        pairs = [(grupos[i], grupos[j]) for i in range(len(grupos)) for j in range(i + 1, len(grupos))]
+    filas = []
+    for idx in indices:
+        for a, b in pairs:
+            va = data.loc[data[group_col] == a, idx].dropna().to_numpy(dtype=float)
+            vb = data.loc[data[group_col] == b, idx].dropna().to_numpy(dtype=float)
+            fila = {"Índice": idx, "Par": f"{a} vs {b}", "A": a, "B": b, "n A": len(va), "n B": len(vb),
+                    "Mediana A": np.median(va) if len(va) else np.nan,
+                    "Mediana B": np.median(vb) if len(vb) else np.nan, "δ Cliff": np.nan, "p": np.nan}
+            if len(va) >= 2 and len(vb) >= 2:
+                fila["δ Cliff"] = cliffs_delta(va, vb)
+                try:
+                    fila["p"] = float(stats.mannwhitneyu(va, vb, alternative="two-sided").pvalue)
+                except ValueError:
+                    pass
+            filas.append(fila)
+    out = pd.DataFrame(filas)
+    if out.empty:
+        return out
+    out["p Holm"] = np.nan
+    ok = out["p"].notna()
+    if ok.any():
+        out.loc[ok, "p Holm"] = multipletests(out.loc[ok, "p"], method="holm")[1]
+    out["Magnitud"] = out["δ Cliff"].map(effect_label)
+    out["Significativo"] = out["p Holm"] < alpha
+    return out
 
 
 def compare_groups(groups: dict[str, list[float]], alpha: float = ALPHA_SIGNIFICANCE) -> dict:

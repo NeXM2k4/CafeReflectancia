@@ -1,4 +1,4 @@
-"""Prueba de humo: abre las 5 paginas con los filtros por defecto y falla si hay excepciones.
+"""Prueba de humo: abre todas las vistas con los filtros por defecto y falla si hay excepciones.
 
 No verifica valores (eso lo hacen los chequeos de coherencia numerica, F6), solo que cada
 pagina renderiza sin lanzar una excepcion no capturada. Se corre con:
@@ -17,13 +17,17 @@ from streamlit.testing.v1 import AppTest
 
 ROOT = Path(__file__).resolve().parent.parent
 
+# app.py es el enrutador (st.navigation) y abre "Panorama"; el resto de vistas se prueban solas.
 PAGES = [
     "app.py",
-    "pages/1_Espectros.py",
-    "pages/2_Indices_Espectrales.py",
-    "pages/3_Comparacion_Especies.py",
-    "pages/4_Estado_Hojas.py",
-    "pages/5_Evolucion_Temporal.py",
+    "views/metodo.py",
+    "views/espectros.py",
+    "views/indices.py",
+    "views/variedades.py",
+    "views/estado_actual.py",
+    "views/evolucion.py",
+    "views/datos_calidad.py",
+    "views/alerta.py",
 ]
 
 

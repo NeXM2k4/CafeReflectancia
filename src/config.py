@@ -189,6 +189,19 @@ INDEX_DEFINITIONS = {
     "mNDVI705": "NDVI modificado del borde rojo, corregido por dispersión foliar con R445.",
 }
 
+# Ficha de cada indice activo: nombre estandar en la literatura, formula con las bandas que usa
+# `processing.calcular_indices()` y la referencia original. EDI y RCI son los nombres historicos
+# de la app; en la literatura corresponden a ND705 y CRI1 (ver plan_mejora_app.md, D2).
+INDEX_SHEET = {
+    "NDVI": ("NDVI", "(R800 − R670) / (R800 + R670)", "Vigor y verdor general", "Rouse et al. (1974)"),
+    "PRI": ("PRI", "(R531 − R570) / (R531 + R570)", "Eficiencia fotosintética, ciclo de xantofilas", "Gamon et al. (1992)"),
+    "PSRI": ("PSRI", "(R678 − R500) / R750", "Senescencia; aumenta al degradarse el tejido", "Merzlyak et al. (1999)"),
+    "RCI": ("CRI1", "1/R510 − 1/R550", "Carotenoides; no acotado, escala con la reflectancia", "Gitelson et al. (2002)"),
+    "EDI": ("ND705", "(R750 − R705) / (R750 + R705)", "Posición del borde rojo", "Gitelson y Merzlyak (1994)"),
+    "NDRE": ("NDRE", "(R790 − R720) / (R790 + R720)", "Clorofila a través del borde rojo", "Barnes et al. (2000)"),
+    "mNDVI705": ("mND705", "(R750 − R705) / (R750 + R705 − 2·R445)", "Borde rojo corregido por reflexión superficial", "Sims y Gamon (2002)"),
+}
+
 ALPHA_SIGNIFICANCE = 0.05
 
 # --- Evolucion temporal por hoja (ver evoluciontemporal.md) ---
