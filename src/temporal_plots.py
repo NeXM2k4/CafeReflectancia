@@ -17,8 +17,8 @@ from src.config import (
     RUST_RISK_CLASSES,
 )
 
-TEXT_MUTED = "#C9CDD3"
-GRID = "rgba(255,255,255,0.08)"
+TEXT_MUTED = "#8E8C85"
+GRID = "#262725"
 SPECIES_ORDER = ["Bourbon", "Pacamara", "Canefora", "Cuscatleco"]
 TYPE_ORDER = {"M": 0, "T": 1, "R": 2}
 
@@ -44,7 +44,7 @@ def date_color(hex_color: str, t: float) -> str:
     """Rampa de un solo tono: apagado (primera fecha) a brillante (ultima), sobre el fondo oscuro."""
     h = hex_color.lstrip("#")
     c = np.array([int(h[k:k + 2], 16) for k in (0, 2, 4)], float)
-    lo = c * 0.35 + np.array([14, 17, 23]) * 0.65
+    lo = c * 0.35 + np.array([17, 18, 17]) * 0.65
     hi = c * 0.7 + 255 * 0.3
     r, g, b = (lo + (hi - lo) * float(np.clip(t, 0, 1))).round().astype(int)
     return f"rgb({r},{g},{b})"
@@ -99,7 +99,7 @@ class TimePlots:
                     x=g[self.xcol], y=y, mode="lines+markers", name=leaf_name(leaf), legendgroup=leaf,
                     legendrank=rank, showlegend=showlegend, connectgaps=False, error_y=err,
                     line=dict(color=color, width=2, dash=dash),
-                    marker=dict(size=8, color=color, line=dict(width=2, color="#0E1117")),
+                    marker=dict(size=8, color=color, line=dict(width=2, color="#111211")),
                     customdata=custom,
                     hovertemplate=(
                         f"<b>{leaf}</b> · %{{customdata[0]}} (día %{{customdata[1]}})<br>"
@@ -190,7 +190,7 @@ class TimePlots:
                         x=g[self.xcol], y=g[pts_col] * scale, mode="markers", name="Puntos individuales (p1–p3)",
                         legendgroup="self.pts", legendrank=800, showlegend=leyenda and leaf == pm["leaf"].min(),
                         marker=dict(size=7, color=rgba(LEAF_TYPE_COLORS["M"], 0.65), symbol="circle",
-                                    line=dict(width=1, color="#0E1117")),
+                                    line=dict(width=1, color="#111211")),
                         customdata=g["point"],
                         hovertemplate=f"{leaf} · p%{{customdata}}<br>%{{x}}<br>%{{y:.4f}}<extra></extra>",
                     ), row=row, col=j)

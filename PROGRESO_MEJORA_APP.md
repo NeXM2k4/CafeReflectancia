@@ -43,6 +43,17 @@ razón por la que la página 5 usa S1 (primeras 2 campañas) como ancla principa
 **Pruebas:** 7/7 pasan (6 de humo + interacciones repetidas de la página 5). `main` no se tocó:
 el merge queda para el usuario (`DEPLOY.md` §A).
 
+## Tercera sesión: presentación profesional (`plan_presentacion.md`)
+
+Navegación agrupada en 4 secciones y 9 vistas (`app.py` enrutador, vistas en `views/`); Inicio se
+dividió en *Panorama*, *Datos y calidad*, *Alerta de campo* y *Método y glosario* (que lee
+`METODOLOGIA.md`). Sistema visual único en `src/ui.py` (IBM Plex, plantilla Plotly, notas
+tipificadas, tablas sobrias, filtro de campañas por rango). Índices y Variedades pasan a una matriz
+de δ de Cliff por pares con Holm (antes: Kruskal-Wallis con "None"). Estado actual con escala
+secuencial y el desglose por índice de cada porcentaje. Espectros ~10× más liviano (curvas por hoja
+en una sola traza, suavizado cacheado). Verificado con capturas en Chrome headless (1500 y 1100 px)
+y 10 pruebas en verde. Hallazgo: 4 espectros sin firma de hoja (NDVI ≈ 0), marcados y sin excluir.
+
 ## Decisiones D1–D7 (tomadas por mí, siguiendo mis propias recomendaciones del plan,
 porque el usuario está fuera y pidió avanzar con todas las fases; quedan documentadas
 para que las revise al volver — cualquiera se puede deshacer)

@@ -10,7 +10,7 @@ ROOT = Path(__file__).resolve().parent.parent
 
 
 def test_page5_survives_repeated_interactions():
-    at = AppTest.from_file(str(ROOT / "pages/5_Evolucion_Temporal.py"), default_timeout=180)
+    at = AppTest.from_file(str(ROOT / "views/evolucion.py"), default_timeout=180)
     at.run()
     assert not at.exception, [str(e) for e in at.exception]
     for especie in ["Pacamara", "Canefora", "Cuscatleco", "Bourbon"]:

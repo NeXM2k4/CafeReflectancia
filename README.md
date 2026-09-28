@@ -1,9 +1,9 @@
-# Reflectancia foliar en café — detección de roya
+# Reflectancia foliar y roya del café
 
-App en **Streamlit** para analizar mediciones de reflectancia foliar (espectrómetro
-SpectraSuite) y ayudar a detectar roya del café (*Hemileia vastatrix*) en Bourbon y Pacamara,
-las dos variedades susceptibles del dataset. Reemplaza el análisis manual que antes se hacía en
-un notebook.
+Aplicación en **Streamlit** para analizar espectros de reflectancia foliar (espectrómetro de
+contacto, formato SpectraSuite) de cuatro variedades de café medidas semana a semana sobre las
+mismas hojas, con el objetivo de caracterizar la roya (*Hemileia vastatrix*) en el espectro y
+distinguirla del envejecimiento normal de la hoja.
 
 ## Cómo correrla
 
@@ -12,82 +12,78 @@ pip install -r requirements.txt
 streamlit run app.py
 ```
 
-Cada vez que se edite código en `src/` o `pages/`, hay que **reiniciar el proceso de Streamlit**
-(`Ctrl+C` y `streamlit run app.py` de nuevo) — guardar el archivo no alcanza.
-
-Para las credenciales de Telegram (opcional, solo si se va a usar la alerta), copiar
+Tras editar código en `src/` hay que reiniciar el proceso (`Ctrl+C` y volver a ejecutar); los
+cambios en `views/` se recargan solos. Para la alerta de Telegram (opcional), copiar
 `.streamlit/secrets.toml.example` a `.streamlit/secrets.toml` y completarlo.
 
-Para correr las pruebas:
+Pruebas:
 
 ```bash
 pip install -r requirements-dev.txt
 python -m pytest tests/
 ```
 
-## Qué responde cada página
+## Organización de la aplicación
 
-| Página | Pregunta que responde |
-|---|---|
-| **Inicio** | Qué datos hay, su calidad, y si hay novedades para avisar por Telegram |
-| **1. Espectros** | Cómo se ve la reflectancia de estas hojas |
-| **2. Índices Espectrales** | Qué índices separan hojas con roya de las que no, por especie |
-| **3. Comparación Especies** | Cómo difieren las 4 variedades entre sí (mismo tipo de hoja) |
-| **4. Estado de las Hojas** | Qué tan parecida es cada hoja madura a una hoja con roya, hoy |
-| **5. Evolución Temporal** | Cómo cambia cada hoja física en el tiempo, y si es por roya o por envejecimiento |
+| Sección | Vista | Pregunta que responde |
+|---|---|---|
+| Resumen | **Panorama** | Qué se midió, cómo está diseñado el estudio y cómo están las hojas maduras en la última campaña |
+| | **Método y glosario** | Cómo se procesa y agrega cada dato; qué significa cada término (lee `METODOLOGIA.md`) |
+| Análisis exploratorio | **Espectros** | Cómo se ven las curvas de reflectancia por tipo de hoja |
+| | **Índices por tipo de hoja** | Qué índices distinguen la hoja con roya de la tierna y la madura, y cuánto (δ de Cliff, Holm) |
+| | **Comparación entre variedades** | Si las variedades difieren con el mismo tipo de hoja |
+| Seguimiento de hojas | **Estado actual** | Similitud con roya de cada hoja, fecha por fecha, y cómo se forma ese porcentaje |
+| | **Evolución temporal** | Si el cambio de una hoja madura es propio de la roya o envejecimiento |
+| Datos y operación | **Datos y calidad** | Inventario y todo lo excluido o marcado, con el motivo |
+| | **Alerta de campo** | Revisar mediciones nuevas y enviar el aviso por Telegram (con vista previa) |
 
-## Flujo típico: agregar una campaña nueva
+## Agregar una campaña nueva
 
-1. Copiar la carpeta de la campaña a `data/` (cualquier subcarpeta nueva se detecta sola).
-2. Abrir la app (o "🔄 Recargar datos" en Inicio si ya estaba abierta).
-3. Revisar la sección "Calidad de datos" de Inicio: confirma que no hay archivos sin
-   reconocer ni sorpresas.
-4. "Verificar novedades" → revisar la vista previa → "✅ Enviar a Telegram" si corresponde.
+1. Copiar la carpeta de la campaña a `data/` (las subcarpetas nuevas se detectan solas).
+2. Abrir la aplicación, o «Volver a escanear data/» en *Datos y calidad* si ya estaba abierta.
+3. Revisar *Datos y calidad*: que no aparezcan archivos sin reconocer ni marcas inesperadas.
+4. En *Alerta de campo*: «Revisar novedades» → leer la vista previa → «Enviar a Telegram».
 
-No hace falta tocar código para que la app reconozca campañas o especies nuevas, siempre que
-sigan el patrón de nombres ya documentado (ver `METODOLOGIA.md`).
+No hace falta tocar código mientras los archivos sigan la convención de nombres
+(`docs/bitacora.md` §4).
 
-## Estructura del repo
+## Estructura del repositorio
 
 ```
-app.py                    # Inicio: inventario, calidad de datos, alerta
-pages/                    # 1-5, ver tabla de arriba
+app.py                  enrutador: configuración, tema y navegación
+views/                  una vista por archivo (ver tabla de arriba)
 src/
-  parser.py                 # descubre y parsea los .txt de data/
-  processing.py              # suavizado + índices espectrales (fórmulas puras)
-  indices.py                 # tabla única de índices por archivo/punto/hoja-fecha (cacheada)
-  severity.py                 # anclas sana/con-roya y similitud con roya
-  stats_utils.py               # comparación estadística con veredicto en palabras
-  temporal.py                   # series por hoja física en el tiempo (página 5)
-  temporal_plots.py              # helpers de gráficos de la página 5
-  notifier.py                    # mensajes y envío por Telegram
-  config.py, ui.py, state.py      # constantes, estilos compartidos, registro de novedades
-data/                      # mediciones crudas (.txt), no se versiona la lógica de negocio aquí
-figures_ieee/              # figuras para el paper (make_ieee_figures.py)
-tests/                     # pruebas automáticas
+  parser.py             descubre y lee los .txt de data/
+  processing.py         suavizado y fórmulas de los índices
+  indices.py            tabla única de índices por espectro, punto y hoja-fecha; control de calidad
+  severity.py           anclas y similitud con roya
+  stats_utils.py        estadística por pares (δ de Cliff, Mann–Whitney, Holm) y prueba global
+  temporal.py           series por hoja, Δ/Δ*, tendencias, distancia a R1
+  temporal_plots.py     gráficos de la evolución temporal
+  viz_groups.py         gráficos compartidos de comparación entre grupos
+  ui.py                 sistema visual: encabezados, notas, tablas, filtros, plantilla Plotly
+  notifier.py, state.py alerta de Telegram y registro de novedades
+assets/                 logotipo
+data/                   espectros crudos (.txt)
+figures_ieee/           figuras del artículo (make_ieee_figures.py)
+tests/                  pruebas de humo de todas las vistas e interacciones
 ```
 
-## Documentos de referencia
+## Documentos
 
-- **`METODOLOGIA.md`** — única fuente de verdad del método: diseño de muestreo, índices con
-  fórmula, unidad de análisis, similitud con roya, control de calidad y estadística.
-- **`ESTADO_PROYECTO.md`** — estado vigente: qué hay, qué está abierto y cómo retomar.
-- **`DEPLOY.md`** — cómo publicar la rama y desplegar la app.
-- **`plan_mejora_app.md`** / **`PROGRESO_MEJORA_APP.md`** — plan y bitácora de la sesión de pulido.
-- **`plan_mejora_paper.md`** — plan para el paper de CONCAPAN (pausado hasta cerrar la app).
-- **`evoluciontemporal.md`** — plan y hallazgos detallados de la página 5.
-- **`docs/bitacora.md`** y **`docs/historico_estado_roya.md`** — historia del proyecto (parte
-  desactualizada; no describe el comportamiento actual).
+- **`METODOLOGIA.md`**: fuente única del método (la vista *Método y glosario* lo muestra).
+- **`ESTADO_PROYECTO.md`**: estado vigente y pendientes.
+- **`DEPLOY.md`**: publicar la rama y desplegar.
+- **`plan_mejora_app.md`**, **`plan_presentacion.md`**, **`PROGRESO_MEJORA_APP.md`**: planes y
+  bitácora de la mejora de la aplicación.
+- **`plan_mejora_paper.md`**: plan del artículo (pausado hasta cerrar la aplicación).
+- **`evoluciontemporal.md`**: diseño y hallazgos del análisis temporal.
+- **`docs/`**: historia del proyecto; no describe el comportamiento actual.
 
-## Limitaciones importantes (léase antes de sacar conclusiones)
+## Limitaciones (leer antes de sacar conclusiones)
 
-- **n = 1 hoja con roya confirmada por especie** en todo el dataset. Cualquier resultado sobre
-  "hojas con roya" describe esa hoja puntual, no una muestra poblacional.
-- Los puntos de medición (p1, p2, p3) **no son ubicaciones fijas** entre campañas: son muestras
-  espaciales intercambiables dentro de la hoja, nunca se sigue "el punto 2" en el tiempo.
-- "Madura" y "Tierna" son hojas **sin síntomas visibles**, no "sanas" — su estado sanitario real
-  se desconoce; es justo lo que la similitud con roya trata de estimar.
-- La similitud con roya (0-100 %) es una medida relativa a los propios datos, **no un
-  diagnóstico**.
-
-Detalle completo en `plan_mejora_app.md` y `evoluciontemporal.md`.
+- **Una sola hoja con roya por variedad** susceptible. Lo que se ve de «con roya» describe esa
+  hoja, no una población.
+- Los puntos p1–p3 **no son ubicaciones fijas** entre campañas.
+- «Madura» y «Tierna» significan **sin síntomas visibles**, no «sana».
+- La similitud con roya (0–100 %) es **relativa a los propios datos**; no es un diagnóstico.

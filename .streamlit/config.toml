@@ -1,10 +1,39 @@
 [theme]
 base = "dark"
-primaryColor = "#199E70"
-backgroundColor = "#0E1117"
-secondaryBackgroundColor = "#1C2128"
-textColor = "#FAFAFA"
-font = "sans serif"
+# Acento neutro: los colores con significado (tipo de hoja, especie, similitud) quedan
+# reservados a los datos y nunca se reutilizan para botones o controles.
+primaryColor = "#D9D6CC"
+backgroundColor = "#111211"
+secondaryBackgroundColor = "#1B1C1B"
+textColor = "#ECEBE6"
+borderColor = "#2E2F2D"
+dataframeBorderColor = "#262725"
+dataframeHeaderBackgroundColor = "#1B1C1B"
+showWidgetBorder = true
+showSidebarBorder = true
+linkColor = "#8FB8E8"
+linkUnderline = false
+baseRadius = "6px"
+buttonRadius = "6px"
+font = "'IBM Plex Sans':https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap, sans-serif"
+headingFont = "'IBM Plex Sans':https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap, sans-serif"
+codeFont = "'IBM Plex Mono':https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&display=swap, monospace"
+baseFontSize = 15
+headingFontWeights = [600, 600, 600, 600, 600, 600]
+headingFontSizes = ["1.9rem", "1.35rem", "1.1rem", "1rem", "0.95rem", "0.9rem"]
+metricValueFontSize = "1.75rem"
+metricValueFontWeight = 500
+codeBackgroundColor = "#1B1C1B"
+codeTextColor = "#C3C2B7"
+chartCategoricalColors = ["#3987E5", "#D95926", "#199E70", "#C98500", "#D55181", "#008300", "#9085E9", "#E66767"]
+
+[theme.sidebar]
+backgroundColor = "#161716"
+secondaryBackgroundColor = "#1F201F"
 
 [client]
 toolbarMode = "minimal"
+showErrorDetails = "full"
+
+[server]
+runOnSave = false
