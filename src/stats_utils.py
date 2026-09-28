@@ -50,7 +50,7 @@ def _verdict(p: float | None, delta: float | None, n_groups: int, alpha: float) 
         return "Separa claramente los grupos"
     if mag >= _DELTA_MODERADA:
         return "Diferencia moderada"
-    return "Diferencia debil (estadisticamente significativa, pero el solape es grande)"
+    return "Diferencia débil (estadísticamente significativa, pero el solape es grande)"
 
 
 def summarize_indices(
@@ -80,7 +80,6 @@ def summarize_indices(
             row.update({"Efecto (δ Cliff)": np.nan, "Test": None, "p": np.nan, "_n_grupos": len(vals)})
             filas.append(row)
             continue
-        labels = list(vals.keys())
         samples = list(vals.values())
         if len(samples) == 2:
             delta = cliffs_delta(samples[0], samples[1])
@@ -142,7 +141,7 @@ def compare_groups(groups: dict[str, list[float]], alpha: float = ALPHA_SIGNIFIC
             "significant": False,
             "posthoc_name": None,
             "posthoc": None,
-            "message": "Se necesitan al menos 2 grupos con 2 o mas observaciones para comparar.",
+            "message": "Se necesitan al menos 2 grupos con 2 o más observaciones para comparar.",
         }
 
     shapiro_results = {}

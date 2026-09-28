@@ -77,7 +77,7 @@ SANA_LABEL = "Sana"
 LEAF_TYPE_COLORS = {"M": "#3987E5", "T": "#199E70", "R": "#D95926", "V": "#9085E9"}
 LEAF_TYPE_LABELS = {"M": "Madura", "T": "Tierna", "R": "Con roya", "V": "Vieja"}
 LEAF_TYPE_HELP = {
-    "M": "Hoja madura: sin sintomas visibles, pero su estado sanitario real no se conoce.",
+    "M": "Hoja madura: sin síntomas visibles, pero su estado sanitario real no se conoce.",
     "T": "Hoja tierna: tejido nuevo, la roya no ha tenido tiempo de manifestarse. Referencia sana.",
     "R": "Hoja con roya confirmada visualmente.",
     "V": "Hoja vieja (madurez adicional a M/T); en varias campañas no se registro su especie.",
@@ -101,15 +101,15 @@ def leaf_type_label(code: str, short: bool = False) -> str:
 # (ver `rust_risk_class`).
 RUST_RISK_CLASSES = [
     (0.0, "Sin señal de roya", "🟢", "Espectro similar al de una hoja tierna sana de referencia."),
-    (1 / 3, "Vigilar", "🟡", "Alguna similitud con la hoja de referencia con roya, todavia debil."),
+    (1 / 3, "Vigilar", "🟡", "Alguna similitud con la hoja de referencia con roya, todavía débil."),
     (2 / 3, "Revisar en campo", "🟠", "Similitud considerable con la hoja de referencia con roya."),
     (1.0, "Alta similitud con roya", "🔴", "El espectro se parece mucho al de la hoja con roya confirmada."),
 ]
 
 # Accion sugerida por clase (una por clase: con solo 4 no hace falta agrupar en tramos).
 RUST_RISK_ACTIONS = [
-    (1 / 6, "Sin accion necesaria: mantener el monitoreo habitual."),
-    (0.5, "Revisar esta hoja/planta en la proxima visita de campo."),
+    (1 / 6, "Sin acción necesaria: mantener el monitoreo habitual."),
+    (0.5, "Revisar esta hoja/planta en la próxima visita de campo."),
     (5 / 6, "Inspeccionar esta hoja en campo lo antes posible."),
     (1.01, "Inspeccionar de inmediato y evaluar manejo/tratamiento contra la roya."),
 ]
@@ -180,13 +180,13 @@ SPECIES_COLORS = {
 # Descripciones breves de cada indice espectral, para la leyenda en las paginas de indices
 INDEX_DEFINITIONS = {
     "NDVI": "Vigor/verdor general de la hoja (clorofila vs. infrarrojo cercano).",
-    "PRI": "Eficiencia fotosintetica / estres, via el ciclo de xantofilas.",
+    "PRI": "Eficiencia fotosintética / estrés, vía el ciclo de xantofilas.",
     "PSRI": "Senescencia: sube cuando el tejido foliar se degrada.",
-    "RCI": "Rust Carotenoid Index: carotenoides asociados a estres por roya.",
+    "RCI": "Rust Carotenoid Index: carotenoides asociados a estrés por roya.",
     "EDI": "Early Detection Index: shift del borde rojo (red-edge).",
-    "FSR": "Foliar Stress Ratio (mismas bandas que NDVI en la formulacion actual).",
-    "NDRE": "Normalized Difference Red Edge: clorofila via borde rojo (790/720 nm).",
-    "mNDVI705": "NDVI modificado del borde rojo, corregido por dispersion foliar con R445.",
+    "FSR": "Foliar Stress Ratio (mismas bandas que NDVI en la formulación actual).",
+    "NDRE": "Normalized Difference Red Edge: clorofila vía borde rojo (790/720 nm).",
+    "mNDVI705": "NDVI modificado del borde rojo, corregido por dispersión foliar con R445.",
 }
 
 ALPHA_SIGNIFICANCE = 0.05

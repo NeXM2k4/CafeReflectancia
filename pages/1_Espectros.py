@@ -12,7 +12,6 @@ Reescrita en la fase F2 de plan_mejora_app.md. Cambios respecto de la version an
   espectrometro, no un valor real).
 """
 
-import numpy as np
 import plotly.graph_objects as go
 import streamlit as st
 
@@ -46,7 +45,7 @@ render_header("Espectros — reflectancia por tipo de hoja")
 
 df = get_dataset()
 if df.empty:
-    st.warning("No hay datos en `data/`. Ve a la pagina de inicio.")
+    st.warning("No hay datos en `data/`. Ve a la página de inicio.")
     st.stop()
 
 recognized = df[df["name_recognized"]]
@@ -183,6 +182,6 @@ st.plotly_chart(fig, width='stretch')
 reflect_neg = any((spec.loc[spec["wavelength"] >= DISPLAY_X_MIN, "reflectance"] < 0).any() for spec in spectra.values())
 if reflect_neg:
     st.caption(
-        "⚠️ Alguna curva tiene reflectancia negativa en el rango mostrado: senal debil del "
-        "espectrometro en esa medicion, no un valor fisico real."
+        "⚠️ Alguna curva tiene reflectancia negativa en el rango mostrado: señal débil del "
+        "espectrómetro en esa medición, no un valor físico real."
     )
