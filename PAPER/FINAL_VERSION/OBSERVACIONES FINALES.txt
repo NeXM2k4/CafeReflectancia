@@ -1,0 +1,3 @@
+1. Datos de la Tabla II: Falta la fila PSRI. Si no la añades, hay que quitarlo de los “ocho índices” en todo el texto. NDVI y FSR son idénticos en todas las celdas. CRI1 es unas 100 veces menor de lo habitual, lo que sugiere reflectancia en porcentaje.
+2. Niveles de alerta. Faltan la fuente de la escala y cómo se pasa de índices a nivel.
+3. Hacer mas grandes-saber ocupar bien los espacios y cambiar el EDI por el CRI1 que aparece en los diagramas de bigotes y casi que no se ven tambien los diagramas de bigotes.

@@ -1,0 +1,334 @@
+\documentclass[conference]{IEEEtran}
+\IEEEoverridecommandlockouts
+\usepackage{cite}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{algorithmic}
+\usepackage{graphicx}
+\usepackage{textcomp}
+\usepackage{xcolor}
+\usepackage{booktabs}
+\usepackage{makecell}
+
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{siunitx}
+
+\def\BibTeX{{\rm B\kern-.05em{\sc i\kern-.025em b}\kern-.08em
+    T\kern-.1667em\lower.7ex\hbox{E}\kern-.125emX}}
+\begin{document}
+
+\title{Detection of Coffee Leaf Rust in Susceptible Varieties Using a Portable Reflectance IoT Prototype}
+
+\author{\IEEEauthorblockN{1\textsuperscript{st} Samuel De la O}
+\IEEEauthorblockA{\textit{Laboratorio de espectroscopía óptica} \\
+\textit{Universidad de El Salvador}\\
+San Salvador, El Salvador \\
+dj20003@ues.edu.sv}
+\and
+\IEEEauthorblockN{1\textsuperscript{nd} Nelson Mej\'ia}
+\IEEEauthorblockA{\textit{Laboratorio de espectroscopía óptica} \\
+\textit{Universidad de El Salvador}\\
+San Salvador, El Salvador \\
+ms23037@ues.edu.sv}
+\and
+\IEEEauthorblockN{2\textsuperscript{rd} Mario Saravia}
+\IEEEauthorblockA{\textit{Laboratorio de espectroscopía óptica} \\
+\textit{Universidad de El Salvador}\\
+San Salvador, El Salvador \\
+sf14003@ues.edu.sv}
+\and
+\IEEEauthorblockN{3\textsuperscript{th} Rodrigo Salguero}
+\IEEEauthorblockA{\textit{Laboratorio de espectroscopía óptica} \\
+\textit{Universidad de El Salvador}\\
+San Salvador, El Salvador \\
+sa24020@ues.edu.sv}
+\and
+%\IEEEauthorblockN{4\textsuperscript{th} Gerardo Benítez}
+%\IEEEauthorblockA{\textit{Laboratorio de espectroscopía óptica} \\
+%\textit{Universidad de El Salvador}\\
+%San Salvador, El Salvador \\
+%bs24002@ues.edu.sv}
+%\and
+\IEEEauthorblockN{5\textsuperscript{th} Carlos Rudamas}
+\IEEEauthorblockA{\textit{Laboratorio de espectroscopía óptica} \\
+\textit{Universidad de El Salvador}\\
+San Salvador, El Salvador \\
+carlos.rudamas@ues.edu.sv}
+}
+
+\maketitle
+
+\begin{abstract}
+Coffee leaf rust (CLR; \textit{Hemileia vastatrix}) causes severe yield losses, yet visual detection occurs only after irreversible damage. We present a portable reflectance IoT prototype for early, non-destructive CLR detection in two susceptible coffee varieties: Bourbon and Pacamara. The device integrates a Ocean Optics spectrometer, bifurcated optical fiber, and deuterium-halogen light source for reflectance acquisition from attached leaves. Leaves were classified as healthy (H, young) and rust-infected (R, symptomatic). Eight reflectance indices were computed: RCI, EDI, FSR, NDVI, PRI, PSRI, NDRE, and mNDVI705. Statistical analysis (Kruskal-Wallis with Dunn post-hoc) revealed that EDI, PRI, NDRE, and mNDVI705 significantly distinguished healthy from rust-infected leaves (p $< 0.001$). EDI showed the most consistent discrimination - diferenciando-, with changes between the both groups of 37\% in Bourbon (healthy: 0.438 and rust: 0.275) and 41\% in Pacamara (healthy: 0.410 and rust: 0.241). PRI exhibited the largest relative change, being 130\% higher in Bourbon and 407\% in Pacamara. The prototype offers a low-cost, field-deployable early warning solution through IoT integration.
+\end{abstract}
+
+\begin{IEEEkeywords}
+coffee leaf rust, \textit{Hemileia vastatrix}, reflectance spectroscopy, vegetation indices, IoT, early disease detection
+\end{IEEEkeywords}
+
+\section{Introduction}
+Coffee leaf rust (CLR), caused by the biotrophic fungus \textit{Hemileia vastatrix}, is the most destructive disease affecting coffee production worldwide \cite{talhinhas2017,chemuramutanga2018}. Yield losses can reach up to 50\% in severe outbreaks \cite{marin2021}, threatening the livelihoods of millions of smallholder farmers across Central America and beyond. One of the main challenges for CLR management is its 3--6 week incubation period \cite{kushalappa1983}: the pathogen colonizes the leaf mesophyll long before visible symptoms—such as chlorotic spots or orange uredinia—appear. Consequently, conventional visual scouting detects the disease only after significant physiological damage has already occurred, making it inherently reactive rather than preventive \cite{castro2018}.
+
+In recent years, optical sensing techniques have emerged as a promising alternative for early disease detection. These methods exploit the fact that pathogen infection alters leaf pigment composition (chlorophyll, carotenoids) and internal cellular structure, which in turn modify the reflectance spectrum in the visible and near-infrared (VIS-NIR) range \cite{oliveira2022,gitelson2002}. Several approaches have been explored, including UAV-based multispectral imaging \cite{oliveira2022}, hyperspectral imaging combined with machine learning classifiers \cite{castro2018}, wireless sensor networks coupled with remote sensing \cite{velasquez2020}, vegetation indices derived from aerial platforms \cite{marin2021}, and field spectroradiometry with regression models \cite{chemuramutanga2018}. While these studies report classification accuracies around 80\%, they typically rely on costly, laboratory-grade, or airborne equipment that is impractical for routine use by farm technicians in resource-limited settings.
+
+To address this gap, we propose a portable, low-cost reflectance IoT prototype designed for in-situ, non-destructive operation on attached leaves. The device integrates a compact spectrometer, a bifurcated optical fiber, and a tungsten-halogen light source, enabling contact reflectance measurements directly in the field. This study focuses on two commercially important coffee varieties with well-documented susceptibility to CLR: Bourbon (9.44\% field incidence) and Pacamara (8.28\% incidence) \cite{catie2018,oliveiradesouza2022}. Leaves were classified into two categories: healthy (H, young leaves) and rust-infected (R, leaves with confirmed visible lesions). Young leaves serve as a reliable healthy reference due to their thinner cuticle and reduced stomatal density, which limit spore germination and fungal penetration \cite{kushalappa1983}. The central objective of this work is to evaluate whether a set of established and adapted reflectance indices can distinguish healthy from infected leaves under natural field conditions, and to demonstrate the feasibility of integrating this spectroscopic approach with an automated IoT-based alerting system for early CLR warning.
+
+\section{Related Work}
+A growing body of research has explored the use of reflectance spectroscopy and vegetation indices for CLR detection. Chemura et al. \cite{chemuramutanga2018} demonstrated that spectroradiometer data combined with machine learning regression can predict CLR severity, identifying pigment-sensitive spectral bands that correlate with visual disease ratings. At the plot scale, Marin et al. \cite{marin2021} used UAV-based multispectral vegetation indices and decision-tree classifiers to map CLR incidence in coffee plantations, achieving classification accuracies above 80\%. Hyperspectral imaging has also been applied under controlled conditions, with expert-system classifiers distinguishing different stages of rust infection \cite{castro2018}. More recently, Velásquez et al. \cite{velasquez2020} combined wireless sensor networks with remote sensing and deep learning to monitor CLR progression in Colombian \textit{Caturra} plantations. Cabrera et al. \cite{cabrera2024} proposed convolutional neural networks trained on low-resolution RGB images as a low-cost alternative for early screening. Across these studies, the red-edge (680--750 nm) and near-infrared (750--1000 nm) regions consistently emerge as the most informative spectral windows for detecting early-stage stress \cite{oliveira2022}.
+
+In parallel, the Internet of Things (IoT) has enabled new paradigms for agricultural monitoring. Low-cost sensing devices coupled with instant-messaging alerting systems, particularly using Telegram bots, have been demonstrated for irrigation management and general plant monitoring \cite{krishna2019,nyakuri2025,talaat2026}. These systems provide real-time, actionable information directly to farmers' mobile devices, bypassing the need for centralized infrastructure. However, to the best of our knowledge, no existing work combines point-reflectance spectroscopy—specifically designed for early CLR detection—with an IoT-based instant alerting system tailored to the needs of smallholder coffee farmers. This integration represents the main contribution of the present study.
+\section{Materials and Methods}
+
+\subsection{Plant Material and Experimental Conditions}
+Plants from Faculty of Agronomy at the Universidad de El Salvador. Two plants per variety (Bourbon and Pacamara) were selected. One leaf per category (H and R) was sampled from each plant.
+
+\subsection{Prototype and Acquisition}
+The prototype comprises a USB4000 spectrometer (350--1000 nm), bifurcated fiber (200 $\mu$m), HL-2000 source, and SpectraSuite Software(Figure 1). For each leaf, nine spectra were collected by averaging three repetitions across three distinct points, avoiding the midrib. Measurements were conducted on two leaves per variety across five sampling periods, yielding a total of 90 spectra per variety group. All measurements were acquired using fixed parameters, including an integration time of 300 ms and a 5-scan averaging setting.
+
+\begin{figure}[htbp]
+\centerline{\includegraphics[width=1.1\linewidth]{images/ESQUEMA_DIAGRAMA.jpeg}}
+\caption{In situ measurement equipment. Left: A: battery, B: spectrometer, C: light source, D: optical fiber, E: probe. Right: data acquisition schematic.}
+\label{fig:architecture}
+\end{figure}
+
+\subsection{Reflectance Indices}
+\label{sec:indices}
+
+Leaf reflectance $R(\lambda)$ in the visible and near-infrared is shaped by two
+largely independent mechanisms \cite{jacquemoud1990}. In the visible
+(400--700\,nm), $R$ is set by \emph{absorption}: chlorophylls $a$ and $b$ absorb
+strongly in the blue (430--450\,nm) and red (640--680\,nm), and carotenoids
+absorb between 450 and 520\,nm. In the near-infrared (NIR, 750--1000\,nm)
+pigments are essentially transparent, and $R$ is set by \emph{scattering} at
+the refractive-index discontinuities between cell walls and intercellular air
+spaces of the mesophyll. Between the two regimes lies the red edge
+(680--750\,nm), where the absorption coefficient falls by orders of magnitude
+over a few tens of nanometres. The wavelength of its maximum slope depends on
+chlorophyll content and is explained mainly as a pure absorption effect:
+as chlorophyll increases, the 680\,nm band saturates and broadens toward longer
+wavelengths, shifting the red edge redward, and chlorophyll loss shifts it
+blueward \cite{horler1983,filella1994}. Across many species and stressors, the
+largest stress-induced change in leaf reflectance within 400--850\,nm is an
+increase near 700\,nm, which is explained by the general tendency of stress to
+reduce chlorophyll \cite{carter2001}. This makes the red edge a natural
+target for early stress detection.
+
+\emph{Hemileia vastatrix} is a biotrophic pathogen that colonizes living leaf
+tissue, so infection perturbs pigment content and mesophyll structure before
+the leaf is shed \cite{talhinhas2017}. Optical sensors are well suited to
+detect such physiological changes non-invasively, and in some cases before
+symptoms are visible \cite{mahlein2012}. We therefore selected eight indices
+that probe pigment absorption and tissue structure separately. Seven are
+previously published; FSR is defined here. All use band ratios or normalized
+differences, which cancel to first order any multiplicative factor common to
+both bands (illumination level, leaf-sensor distance, geometry). This is
+essential for a portable sensor operating without a calibrated reference
+at every measurement.
+
+\paragraph{Carotenoid and xanthophyll indices.}
+Carotenoids and chlorophylls both absorb near 510\,nm, but only chlorophyll
+absorbs appreciably at 550\,nm. To first order $R\approx b_b/(a+b_b)$, with $a$
+the absorption and $b_b$ the backscattering coefficient, so $1/R\approx 1+a/b_b$
+is linear in absorption. The difference of reciprocal reflectances,
+\begin{equation}
+\mathrm{CRI1}=\frac{1}{R(510)}-\frac{1}{R(550)},
+\end{equation}
+thus removes the chlorophyll contribution and isolates the carotenoid term
+\cite{gitelson2002}.
+The photochemical reflectance index,
+\begin{equation}
+\mathrm{PRI}=\frac{R(531)-R(570)}{R(531)+R(570)},
+\end{equation}
+exploits a different carotenoid process: the xanthophyll cycle converts
+violaxanthin to zeaxanthin under excess light or stress, which lowers $R(531)$,
+while $R(570)$ acts as a reference insensitive to this change \cite{gamon1992}.
+PRI has been shown to track photosynthetic light-use efficiency across species,
+functional types and nutrient levels \cite{gamon1997}, so a lower PRI indicates
+reduced photosynthetic efficiency.
+
+\paragraph{Chlorophyll-to-carotenoid balance.}
+\begin{equation}
+\mathrm{PSRI}=\frac{R(678)-R(500)}{R(750)}
+\end{equation}
+is the ratio of a chlorophyll-dominated band (678\,nm, high $R$ when
+chlorophyll is lost) to a carotenoid-dominated band (500\,nm, low $R$ when
+carotenoids dominate). It increases when chlorophyll degrades faster than
+carotenoids, as in senescence. Dividing by $R(750)$, which depends on
+scattering rather than pigments, reduces sensitivity to leaf structure
+\cite{merzlyak1999}. (We use 678\,nm rather than the original 680\,nm because
+of the sensor's spectral sampling.)
+
+\paragraph{Vegetation vigor.}
+NDVI contrasts the red band, where chlorophyll absorbs, with the NIR plateau,
+where scattering dominates:
+\begin{equation}
+\mathrm{NDVI}=\frac{R(800)-R(670)}{R(800)+R(670)}.
+\end{equation}
+It tracks green biomass and canopy density \cite{rouse1973}, but saturates in
+dense vegetation because red absorption is already nearly complete; narrow-band
+indices that use red-edge wavelengths are less affected \cite{mutanga2004}.
+This limits NDVI's sensitivity to early, subtle damage.
+We also define a variant with NIR at 850\,nm,
+\begin{equation}
+\mathrm{FSR}=\frac{R(850)-R(670)}{R(850)+R(670)},
+\end{equation}
+which samples the NIR plateau farther from the red edge, so the NIR term
+is less affected by the edge's slope. It follows the NDVI structure
+\cite{rouse1973} and is introduced here as a distinct feature.
+
+\paragraph{Red-edge indices.}
+Absorption at 700--720\,nm is weaker than at 670\,nm, so red-edge indices stay
+sensitive to chlorophyll where NDVI saturates \cite{gitelson1994,mutanga2004}.
+Because the red edge is also where stress produces its largest reflectance
+change \cite{carter2001}, we use
+\begin{align}
+\mathrm{ND705}&=\frac{R(750)-R(705)}{R(750)+R(705)},\\
+\mathrm{mND705}&=\frac{R(750)-R(705)}{R(750)+R(705)-2R(445)},\\
+\mathrm{NDRE}&=\frac{R(790)-R(720)}{R(790)+R(720)}.
+\end{align}
+ND705 and mND705 are due to Sims and Gamon \cite{sims2002}. In mND705 the term
+$2R(445)$ corrects for specular surface reflection: at 445\,nm
+pigment absorption is maximal, so the residual reflectance is dominated by
+the leaf surface and is subtracted from the denominator.
+NDRE places its two bands on either side of the red edge
+\cite{barnes2000,gitelson2003}, so it responds to chlorophyll-induced
+shifts of the edge.
+
+\paragraph{Expected response and prior work.}
+Under the mechanisms above, rust-infected tissue should show a rise in
+red-edge reflectance \cite{carter2001} and therefore lower ND705, mND705 and
+NDRE, together with lower PRI, NDVI and FSR, and higher PSRI and CRI1. This is
+a physical expectation, not a result; Table~\ref{tab:ranges} reports the
+empirical ranges for healthy (H) and rust-infected (R) leaves.
+Spectral data have already been used for coffee rust at several scales:
+hyperspectral imaging of leaves, with highest classifier sensitivity at early
+infection stages \cite{castro2018}; leaf spectroradiometer measurements to
+predict severity \cite{chemuramutanga2018}; UAV-derived vegetation indices
+\cite{marin2021}; and multispectral imaging of inoculated seedlings, which
+distinguished infection at an asymptomatic stage \cite{soares2022}.
+
+\subsection{Data Processing and Statistics}
+Savitzky-Golay smoothing and baseline correction. Nine technical replicates averaged per leaf per session to avoid pseudo-replication. Normality was assessed using the Shapiro-Wilk test. Since the assumption of normality was violated for most indices, the non-parametric Kruskal-Wallis test was used to compare healthy vs. rust-infected leaves for each variety. Pairwise comparisons were performed using Dunn's post-hoc test with Bonferroni correction. A significance level of $\alpha = 0.05$ was used for all tests.
+
+\subsection{IoT Alerting System}
+The system uses Telegram Bot API. After index computation, aggregated indices are compared to healthy reference thresholds (from H leaves). Exceeding thresholds triggers an alert sent to the technician's mobile \cite{krishna2019,nyakuri2025,talaat2026}. Figure 2 shows the alert notification.
+
+\begin{figure}[htbp]
+\centerline{\includegraphics[width=1.2\linewidth]{images/ALERTA.jpeg}}
+\caption{Acquisition schema of Telegram alert notification.}
+\label{fig:alert}
+\end{figure}
+
+\newpage
+\section{Results}
+
+\subsection{Spectral Signatures}
+Figures 3 and 4 show mean reflectance spectra for healthy (H) and rust-infected (R) leaves for Pacamara and Bourbon varieties. Infected leaves exhibited decreased reflectance in the red-edge (700--750 nm) and NIR (800--900 nm) regions, consistent with chlorophyll loss and structural damage \cite{oliveira2022,gitelson2002}. The differential reflectance spectra highlight the most affected wavelength regions, with the largest differences occurring at approximately 700 nm and 800 nm.
+
+\begin{figure}[htbp]
+\centerline{\includegraphics[width=1\linewidth]{images/ESPECTROMETRO.jpeg}}
+\caption{Mean reflectance spectra for healthy and rust-infected Pacamara. Differential reflectance is also shown.}
+\label{fig:spectra1}
+\end{figure}
+
+\begin{figure}[htbp]
+\centerline{\includegraphics[width=1\linewidth]{images/ESPECTROMETRO2.jpeg}}
+\caption{Mean reflectance spectra for healthy and rust-infected Bourbon. Differential reflectance is also shown.}
+\label{fig:spectra2}
+\end{figure}
+
+\subsection{Index Distributions and Statistical Analysis}
+Table I presents mean $\pm$ SD for all eight indices across varieties and health status. Boxplots (Figures 5 and 6) showed clear separation between healthy and rust-infected leaves for EDI, PRI, NDRE, and mNDVI705 in both Bourbon and Pacamara.
+
+
+\begin{table}[!t] 
+\centering 
+\scriptsize 
+% Reducimos el espacio entre columnas al mínimo para ganar espacio horizontal
+\setlength{\tabcolsep}{1.5pt} 
+\renewcommand{\arraystretch}{1.2} 
+\caption{Mean $\pm$ SD of reflectance indices by variety and health status} 
+\label{tab:indices} 
+
+% Usamos tabularx fijado al ancho de la columna
+\begin{tabularx}{\columnwidth}{@{}l X X X X@{}} 
+\toprule 
+& \multicolumn{2}{c}{\textbf{Bourbon}} & \multicolumn{2}{c}{\textbf{Pacamara}} \\ 
+\cmidrule(lr){2-3} \cmidrule(lr){4-5} 
+\textbf{Index} & \hfil H & \hfil R & \hfil H & \hfil R \\ 
+\midrule 
+% \hfil centra el contenido dentro del espacio dinámico X de la columna
+NDVI     & \hfil $0.632 \pm 0.146$  & \hfil $0.637 \pm 0.071$  & \hfil $0.605 \pm 0.140$  & \hfil $0.632 \pm 0.214$ \\ 
+PRI      & \hfil $-0.036 \pm 0.018$ & \hfil $-0.083 \pm 0.032$ & \hfil $-0.027 \pm 0.014$ & \hfil $-0.137 \pm 0.039$ \\ 
+RCI      & \hfil $0.037 \pm 0.067$  & \hfil $0.030 \pm 0.011$  & \hfil $0.032 \pm 0.052$  & \hfil $0.065 \pm 0.060$ \\ 
+EDI      & \hfil $0.438 \pm 0.134$  & \hfil $0.275 \pm 0.074$  & \hfil $0.410 \pm 0.094$  & \hfil $0.241 \pm 0.134$ \\ 
+FSR      & \hfil $0.632 \pm 0.146$  & \hfil $0.637 \pm 0.071$  & \hfil $0.605 \pm 0.140$  & \hfil $0.632 \pm 0.214$ \\ 
+NDRE     & \hfil $0.231 \pm 0.091$  & \hfil $0.124 \pm 0.036$  & \hfil $0.204 \pm 0.049$  & \hfil $0.097 \pm 0.052$ \\ 
+mNDVI705 & \hfil $0.623 \pm 0.098$  & \hfil $0.365 \pm 0.099$  & \hfil $0.623 \pm 0.092$  & \hfil $0.291 \pm 0.140$ \\ 
+\bottomrule 
+\multicolumn{5}{@{}p{\columnwidth}@{}}{\scriptsize H: healthy (no rust), R: rust-confirmed.} 
+\end{tabularx} 
+\end{table}
+
+
+Normality was assessed using the Shapiro-Wilk test. Since the assumption of normality was violated for most indices, the non-parametric Kruskal-Wallis test was used. In Bourbon, EDI, PRI, NDRE, and mNDVI705 showed significant differences between healthy and rust-infected leaves (p $< 0.001$). Similar results were obtained for Pacamara.
+
+The most sensitive indices, ranked by magnitude of change, were:
+
+\begin{itemize}
+\item \textbf{PRI}: Increased by 130\% in Bourbon (from $-0.036 \pm 0.018$ to $-0.083 \pm 0.032$) and 407\% in Pacamara (from $-0.027 \pm 0.014$ to $-0.137 \pm 0.039$), indicating a dramatic decline in photosynthetic efficiency.
+\item \textbf{mNDVI705}: Decreased by 41\% in Bourbon (from $0.623 \pm 0.098$ to $0.365 \pm 0.099$) and 53\% in Pacamara (from $0.623 \pm 0.092$ to $0.291 \pm 0.140$), reflecting severe chlorophyll degradation.
+\item \textbf{NDRE}: Decreased by 46\% in Bourbon (from $0.231 \pm 0.091$ to $0.124 \pm 0.036$) and 52\% in Pacamara (from $0.204 \pm 0.049$ to $0.097 \pm 0.052$), confirming red-edge chlorophyll loss.
+\item \textbf{EDI}: Decreased by 37\% in Bourbon (from $0.438 \pm 0.134$ to $0.275 \pm 0.074$) and 41\% in Pacamara (from $0.410 \pm 0.094$ to $0.241 \pm 0.134$), demonstrating consistent discrimination between healthy and infected leaves.
+\end{itemize}
+
+In contrast, NDVI, FSR, RCI, and PSRI showed no significant differences (p $> 0.05$), suggesting they are less sensitive to early-stage infection or more affected by natural variability.
+
+\begin{figure}[htbp]
+\centerline{\includegraphics[width=1\linewidth]{images/boxdiagram_actual.jpeg}}
+\caption{Boxplots of reflectance indices for Bourbon and Pacamara.}
+\label{fig:boxplots1}
+\end{figure}
+
+\begin{figure}[htbp]
+\centerline{\includegraphics[width=1\linewidth]{images/summary_rust_vs_healthy.png}}
+\caption{Boxplots of reflectance indices comparing rust-infected vs. healthy leaves.}
+\label{fig:boxplots2}
+\end{figure}
+
+Based on the maximum and minimum values of the analyzed indices, it is possible to design an IoT alert system that notifies a technician for field inspection based on eleven risk levels: \textbf{Healthy (0\%)} with no traces of the fungus, \textbf{Incipient (10\%)} with isolated yellow spots at the base, \textbf{Very light (20\%)} with orange pustules on the underside of the leaves, \textbf{Light (30\%)} with visible spots on the lower third, \textbf{Beginning of moderate (40\%)} as the fungus moves toward the center, \textbf{Moderate (50\%)} with half of the foliage affected, \textbf{Beginning of severe (60\%)} with dry central leaves, \textbf{Severe (70\%)} with high infection and the first leaf drops, \textbf{Very severe (80\%)} with advanced defoliation, \textbf{Critical (90\%)} with extreme tissue damage, and \textbf{Very critical (100\%)} resulting in total destruction and plant death. This allows the user to view the IoT alert on the interface exactly as shown in Figure~\ref{iot}. Additionally, a detailed report processed in real time is sent via Telegram. This allows a trained operator to perform a complete analysis of the measurements taken in each campaign.
+\vspace{-0.5mm}
+\begin{figure}
+    \centering
+    \includegraphics[width=0.8\linewidth]{images/message_alert.jpeg}
+    \caption{Example of IoT: alert estimating severity in situ of coffee leaf}
+    \label{iot}
+\end{figure}
+
+
+\section{Discussion}
+The results show that coffee leaf rust significantly alters the spectral reflectance response of both coffee varieties. The largest differences were observed in the visible region, the \textit{Red Edge}, and the near-infrared (NIR) region, indicating changes in chlorophyll content and leaf internal structure. Moreover, the \textit{Bourbon} variety exhibited larger and more consistent spectral differences than \textit{Pacamara}, suggesting a stronger optical response to rust infection.
+
+The results demonstrate that reflectance indices, particularly EDI, PRI, NDRE, and mNDVI705, effectively distinguish healthy from rust-infected leaves in susceptible coffee varieties. Among these, EDI showed the most consistent discrimination, with reductions of 37\% in Bourbon and 41\% in Pacamara. This supports EDI's utility for early detection before visible symptoms appear.
+
+The strong performance of EDI is consistent with the known sensitivity of the red-edge region to chlorophyll loss and structural damage induced by pathogen infection \cite{oliveira2022,gamon1992}. The red-edge shift reflects the disruption of chloroplast integrity and mesophyll structure, which occur before visible symptoms appear \cite{kushalappa1983}. The 37--41\% reduction in EDI between healthy and infected leaves provides a clear quantitative threshold for early warning.
+
+The dramatic changes in PRI (130--407\%) indicate significant reductions in photosynthetic efficiency, consistent with the known impact of CLR on photosynthesis \cite{gamon1992}. The large relative change suggests that PRI may be particularly useful for detecting physiological stress even when structural changes are not yet apparent. The reductions in NDRE (46--52\%) and mNDVI705 (41--53\%) confirm substantial chlorophyll degradation in infected leaves \cite{gitelson2003}, consistent with the visible yellowing and chlorosis associated with CLR.
+
+In contrast, NDVI and FSR showed minimal changes, suggesting they are less sensitive to early-stage infection. This is consistent with the "saturation" effect of NDVI in moderate to high biomass canopies, where changes in chlorophyll content do not proportionally affect the index \cite{rouse1973}. Similarly, RCI showed no significant differences, suggesting that carotenoid accumulation may not be a primary early response to CLR infection in these varieties.
+
+
+\subsection{Spectral Attribution}
+The observed spectral changes align with known \textit{H. vastatrix} physiology. Chlorophyll degradation increases reflectance in the red and blue regions, while stress-induced carotenoid accumulation affects green--yellow reflectance \cite{gitelson2002,oliveira2022,talhinhas2017}. Red-edge shifts (EDI, NDRE, mNDVI705) arise from chlorophyll loss and mesophyll structural damage \cite{oliveira2022,gamon1992,gitelson2003}. NIR decrease (FSR, NDVI) results from cell wall degradation and air-space collapse \cite{oliveira2022,marin2021}. PRI captures photosynthetic efficiency decline \cite{gamon1992}. The consistent separation of healthy and infected leaves across multiple red-edge indices confirms the physiological basis of the observed spectral differences.
+
+
+\section{Conclusion}
+We presented a portable reflectance IoT prototype for early CLR detection in Bourbon and Pacamara varieties. Four indices—EDI, PRI, NDRE, and mNDVI705—significantly discriminated healthy from rust-infected leaves (p $< 0.001$). EDI showed the most consistent performance, with reductions of 37\% in Bourbon (0.438 $\rightarrow$ 0.275) and 41\% in Pacamara (0.410 $\rightarrow$ 0.241). PRI exhibited the largest relative change (130--407\%), while NDRE and mNDVI705 showed 41--53\% reductions. These findings establish quantitative thresholds for early warning. Future work includes extended monitoring with asymptomatic leaves, benchmarking all eight indices, real-time edge processing, and supervised classifiers for automated alerting. Moreover, reflectance spectroscopy successfully distinguished healthy from rust-infected coffee leaves in both varieties. The \textit{Red Edge} (690--730 nm) and near-infrared (750--1000 nm) regions showed the highest sensitivity to coffee leaf rust, making them the most promising spectral bands for developing vegetation indices and machine learning models for early disease detection using multispectral or hyperspectral sensors.
+
+\section*{Acknowledgment}
+We thank Fernando Granados, Ofir Aguilero, Oscar Deodanes, and Gerardo Benitez. We also thank the Consejo Superior Universitario Centroamericano and the International Development Research Centre (CSUCA-IDRC) for partially funding this research under grants 50ES and 45CR. Furthermore, the authors gratefully acknowledge the support and collaborative framework provided by the Ibero-American Network for Innovation and Technology for Climate-Smart Agriculture (RITACI). We also thank the Consejo de Investigaciones Científicas de la Universidad de El Salvador (CIC-UES) for partial funding under projects 05.31, 06.18, 09.19, and 09.20.
+
+\bibliographystyle{IEEEtran}
+\bibliography{last_version_paper1}
+
+\end{document}
