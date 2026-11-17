@@ -40,9 +40,13 @@ python -m pytest tests/
 ## Agregar una campaña nueva
 
 1. Copiar la carpeta de la campaña a `data/` (las subcarpetas nuevas se detectan solas).
-2. Abrir la aplicación, o «Volver a escanear data/» en *Datos y calidad* si ya estaba abierta.
-3. Revisar *Datos y calidad*: que no aparezcan archivos sin reconocer ni marcas inesperadas.
-4. En *Alerta de campo*: «Revisar novedades» → leer la vista previa → «Enviar a Telegram».
+2. `python scripts/build_cache.py`: procesa solo los archivos nuevos y actualiza `data_cache/`.
+   Commitear `data/` y `data_cache/` juntos. Si se olvida, la app funciona igual: calcula lo que
+   falta al arrancar (ese primer arranque tarda más).
+3. Abrir la aplicación (si ya estaba abierta, ve los archivos nuevos en menos de un minuto, o al
+   instante con «Volver a escanear data/» en *Datos y calidad*).
+4. Revisar *Datos y calidad*: que no aparezcan archivos sin reconocer ni marcas inesperadas.
+5. En *Alerta de campo*: «Revisar novedades» → leer la vista previa → «Enviar a Telegram».
 
 No hace falta tocar código mientras los archivos sigan la convención de nombres
 (`docs/bitacora.md` §4).
@@ -54,6 +58,7 @@ app.py                  enrutador: configuración, tema y navegación
 views/                  una vista por archivo (ver tabla de arriba)
 src/
   parser.py             descubre y lee los .txt de data/
+  store.py              almacen precalculado por archivo (indices + espectro suavizado), en data_cache/
   processing.py         suavizado y fórmulas de los índices
   indices.py            tabla única de índices por espectro, punto y hoja-fecha; control de calidad
   severity.py           anclas y similitud con roya
@@ -65,6 +70,8 @@ src/
   notifier.py, state.py alerta de Telegram y registro de novedades
 assets/                 logotipo
 data/                   espectros crudos (.txt)
+data_cache/             almacen precalculado (parquet, uno por carpeta de campaña); se versiona
+scripts/build_cache.py  actualiza data_cache/ tras agregar datos
 figures_ieee/           figuras del artículo (make_ieee_figures.py)
 tests/                  pruebas de humo de todas las vistas e interacciones
 ```

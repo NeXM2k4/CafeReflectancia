@@ -6,19 +6,27 @@ import plotly.graph_objects as go
 import streamlit as st
 
 from src.config import INDEX_WAVELENGTHS, LEAF_NUM_DASH, LEAF_TYPE_COLORS, LEAF_TYPE_LABELS, SG_POLYORDER, SG_WINDOW, SPECIES_PENDING_LABEL, X_MAX
-from src.parser import get_dataset, leaf_label, load_spectrum
+from src.parser import data_fingerprint, get_dataset, leaf_label, load_spectrum
 from src.processing import prepare_spectrum
-from src.ui import INK_MUTED, LEAF_ORDER, campaign_range, chart, leaf_legend, leaf_sort, note, page_header, rgba, sidebar_footer
+from src.store import GRID as STORE_GRID, processed_store, spectra_matrix
+from src.ui import INK_MUTED, add_vlines, defer_layout_items, LEAF_ORDER, campaign_range, chart, leaf_legend, leaf_sort, note, page_header, rgba, sidebar_footer
 
 # Por debajo de 440 nm la relacion senal/ruido es tan baja que parte de los espectros con roya da
-# reflectancia negativa (METODOLOGIA.md §2). Solo afecta lo que se dibuja.
+# reflectancia negativa (METODOLOGIA.md §2). Solo afecta lo que se dibuja. La grilla es la del
+# almacen precalculado (440-1000 nm, 300 puntos), asi que con el suavizado del analisis las curvas
+# salen de ahi sin releer archivos.
 WL_MIN = 440
-GRID = np.arange(WL_MIN, X_MAX + 0.1, 2.0)
+GRID = STORE_GRID
 
 
 @st.cache_data(show_spinner="Leyendo y suavizando espectros...", max_entries=64)
-def curvas(paths: tuple, window: int, poly: int) -> tuple[np.ndarray, np.ndarray, list]:
-    """Espectros suavizados y crudos interpolados a una grilla de 2 nm (una fila por archivo)."""
+def curvas(paths: tuple, window: int, poly: int, con_crudo: bool) -> tuple[np.ndarray, np.ndarray | None, list]:
+    """Espectros suavizados (y crudos si se piden) en `GRID` (una fila por archivo)."""
+    if (window, poly) == (SG_WINDOW, SG_POLYORDER) and not con_crudo:
+        store = processed_store(data_fingerprint())
+        if all(p in store.index for p in paths):
+            errores = [(p, e) for p, e in zip(paths, store.loc[list(paths), "error"]) if e]
+            return spectra_matrix(store, paths), None, errores
     suav, crudo, errores = [], [], []
     for p in paths:
         try:
@@ -29,7 +37,7 @@ def curvas(paths: tuple, window: int, poly: int) -> tuple[np.ndarray, np.ndarray
             suav.append(np.full(len(GRID), np.nan))
             crudo.append(np.full(len(GRID), np.nan))
             errores.append((p, str(e)))
-    return np.array(suav), np.array(crudo), errores
+    return np.array(suav), (np.array(crudo) if con_crudo else None), errores
 
 
 page_header(
@@ -77,7 +85,7 @@ if sub.empty:
 vista = vista or "Ambas"
 
 sub = sub.sort_values(["session", "session_num", "campaign_date", "point", "repetition"]).reset_index(drop=True)
-Y, Y_raw, errores = curvas(tuple(sub["path"]), sg_window, sg_poly)
+Y, Y_raw, errores = curvas(tuple(sub["path"]), sg_window, sg_poly, ver_crudo)
 
 leaf_legend(sel_tipos)
 fig = go.Figure()
@@ -126,10 +134,10 @@ if vista in ("Media ± DE", "Ambas"):
         resumen.append(f"{nombre}: {len(idx)} espectros de {n_hojas} hoja{'s' if n_hojas != 1 else ''}")
 
 if bandas:
-    for w in INDEX_WAVELENGTHS:
-        fig.add_vline(x=w, line_width=1, line_color="rgba(200,200,190,0.18)")
-        fig.add_annotation(x=w, y=1, yref="paper", text=str(w), showarrow=False, yshift=8,
-                           font=dict(size=9, color=INK_MUTED))
+    add_vlines(fig, INDEX_WAVELENGTHS, "rgba(60,60,55,0.16)")
+    defer_layout_items(fig, annotations=[
+        dict(x=w, y=1, yref="paper", text=str(w), showarrow=False, yshift=8, font=dict(size=9, color=INK_MUTED))
+        for w in INDEX_WAVELENGTHS])
 
 fig.update_layout(
     xaxis_title="Longitud de onda (nm)", yaxis_title="Reflectancia (%)", hovermode="closest",

@@ -73,7 +73,7 @@ else:
 # --------------------------------------------------------------------------------------------
 section("Distribución de cada índice", "Caja: mediana y cuartiles; bigotes hasta 1.5 × RIC. Puntos desplazados a la derecha de cada caja.")
 distributions(ld, "Tipo", nombres, {LEAF_TYPE_LABELS[t]: LEAF_TYPE_COLORS[t] for t in presentes}, DISPLAY_INDICES,
-              flag_col="qc_flag")
+              flag_col="qc_flag", pairs=tabla)
 
 # --------------------------------------------------------------------------------------------
 section("Más detalle")

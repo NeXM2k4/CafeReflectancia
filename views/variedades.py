@@ -70,7 +70,7 @@ pares = [(presentes[i], presentes[j]) for i in range(len(presentes)) for j in ra
 tabla = effect_matrix(ld, "species", DISPLAY_INDICES, pares)
 
 section("Distribución de cada índice", "Una hoja-fecha por punto; círculos vacíos: marcadas por control de calidad.")
-distributions(ld, "species", presentes, SPECIES_COLORS, DISPLAY_INDICES, flag_col="qc_flag")
+distributions(ld, "species", presentes, SPECIES_COLORS, DISPLAY_INDICES, flag_col="qc_flag", pairs=tabla)
 
 section("Más detalle")
 t1, t2, t3, t4, t5 = st.tabs(["Comparaciones por pares", "Prueba global", "Datos", "Detalle técnico", "Índices"])

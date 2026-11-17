@@ -9,7 +9,7 @@ from src.config import LEAF_TYPE_LABELS, RUST_RISK_CLASSES, rust_risk_action, ru
 from src.indices import DISPLAY_INDICES, file_index_table, leaf_date_table, quality_flags
 from src.parser import get_dataset
 from src.severity import leaf_date_similarity, severity_baselines
-from src.ui import (AXIS, INK, INK_2, SIMILARITY_SCALE, campaign_range, chart, html_table, note,
+from src.ui import (AXIS, BG, INK, INK_2, SIMILARITY_SCALE, campaign_range, chart, html_table, note,
                     page_header, section, sidebar_footer)
 
 SUSCEPTIBLES = ["Bourbon", "Pacamara"]
@@ -64,7 +64,7 @@ for sp in sel_sp:
             for h in FILAS]
     fig = go.Figure(go.Heatmap(
         z=z, x=xlab, y=ylab, zmin=0, zmax=100, colorscale=SIMILARITY_SCALE, xgap=2, ygap=2,
-        text=txt, texttemplate="%{text}", textfont=dict(size=12, color=INK), hoverongaps=False,
+        text=txt, texttemplate="%{text}", textfont=dict(size=12), hoverongaps=False,
         colorbar=dict(tickvals=niveles,
                       ticktext=[f"{v:.0f}" for v in niveles], len=1.0, thickness=8),
         hovertemplate="%{y} · %{x}<br>Similitud %{z:.1f} %<extra></extra>",
@@ -118,7 +118,7 @@ with der:
     clip = comp["pos"].clip(0, 1)
     fuera = comp["pos"].notna() & (comp["pos"] != clip)
     fig.add_trace(go.Scatter(
-        x=clip, y=y, mode="markers", marker=dict(size=12, color="#F08A5D", line=dict(width=2, color="#111211"),
+        x=clip, y=y, mode="markers", marker=dict(size=12, color="#D2622E", line=dict(width=2, color=BG),
                                                   symbol=np.where(fuera, "diamond", "circle").tolist()),
         customdata=np.stack([comp["pos"], comp["Valor"], comp["Ancla tierna"], comp["Ancla con roya"]], axis=-1),
         hovertemplate="<b>%{y}</b><br>posición %{customdata[0]:.2f} (recortada a %{x:.2f})<br>valor %{customdata[1]:.4f}"

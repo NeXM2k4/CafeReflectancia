@@ -8,8 +8,12 @@ import plotly.graph_objects as go
 import streamlit as st
 from plotly.subplots import make_subplots
 
-from src.stats_utils import compare_groups, pairwise_effects, summarize_indices
-from src.ui import DIVERGING_SCALE, INK, INK_MUTED, chart, html_table, numeric_column_config, rgba
+from src.stats_utils import compare_groups, pairwise_effects, stars, summarize_indices
+from src.ui import (BG, DIVERGING_SCALE, INK, INK_MUTED, chart, defer_layout_items, html_table, numeric_column_config,
+                    rgba, subplot_refs)
+
+# Con mas de 3 grupos (hasta 6 pares) se dibujan solo los pares significativos, para no tapar las cajas.
+MAX_GRUPOS_TODOS_LOS_PARES = 3
 
 
 def effect_matrix(data: pd.DataFrame, group_col: str, indices: list[str], pairs: list[tuple[str, str]]):
@@ -30,7 +34,7 @@ def effect_matrix(data: pd.DataFrame, group_col: str, indices: list[str], pairs:
     fig = go.Figure(go.Heatmap(
         z=z.to_numpy(dtype=float), x=etiquetas_par, y=indices, zmin=-1, zmax=1, zmid=0,
         colorscale=DIVERGING_SCALE, xgap=2, ygap=2, text=texto, texttemplate="%{text}",
-        textfont=dict(size=12, color=INK), customdata=custom,
+        textfont=dict(size=12), customdata=custom,
         colorbar=dict(tickvals=[-1, -0.474, 0, 0.474, 1], thickness=8,
                       ticktext=["−1", "−0.47", "0", "+0.47", "+1"], len=0.9),
         hovertemplate="%{y} · %{x}<br>δ = %{z:+.3f} (%{customdata[1]})<br>p Holm = %{customdata[0]:.4f}<extra></extra>",
@@ -63,12 +67,44 @@ def pair_table(tabla: pd.DataFrame, decimals: int = 3):
     html_table(out, num_cols=("Mediana A", "Mediana B", "n A / n B", "δ Cliff", "p Holm"), strong_cols=("Índice",))
 
 
+def _brackets(pares: pd.DataFrame, order: list[str], vals: np.ndarray, xref: str, yref: str,
+              solo_significativos: bool) -> tuple[list, list, tuple[float, float] | None]:
+    """Corchetes de significancia entre pares de cajas (formas + textos) y el rango Y que los contiene.
+
+    `pares` son las filas de `pairwise_effects` de un indice (A, B, p Holm). Se apilan de los pares
+    mas cercanos a los mas lejanos para que no se crucen.
+    """
+    pos = {g: i for i, g in enumerate(order)}
+    filas = [(min(pos[a], pos[b]), max(pos[a], pos[b]), p) for a, b, p in zip(pares["A"], pares["B"], pares["p Holm"])
+             if a in pos and b in pos and pd.notna(p) and (not solo_significativos or p < 0.05)]
+    vals = vals[np.isfinite(vals)]
+    if not filas or not len(vals):
+        return [], [], None
+    lo, hi = float(vals.min()), float(vals.max())
+    rango = (hi - lo) or abs(hi) or 1.0
+    paso, pata = 0.13 * rango, 0.03 * rango
+    formas, textos = [], []
+    for k, (i, j, p) in enumerate(sorted(filas, key=lambda f: (f[1] - f[0], f[0]))):
+        y = hi + 0.08 * rango + k * paso
+        formas.append(dict(type="path", xref=xref, yref=yref, line=dict(color=INK_MUTED, width=1),
+                           path=f"M {i},{y - pata} L {i},{y} L {j},{y} L {j},{y - pata}"))
+        textos.append(dict(x=(i + j) / 2, y=y, xref=xref, yref=yref, text=stars(p), showarrow=False,
+                           yanchor="bottom", yshift=-1, font=dict(size=12 if p < 0.05 else 10, color=INK)))
+    return formas, textos, (lo - 0.06 * rango, hi + 0.08 * rango + len(filas) * paso + 0.02 * rango)
+
+
 def distributions(data: pd.DataFrame, group_col: str, order: list[str], colors: dict, indices: list[str],
-                  flag_col: str | None = None, cols: int = 4):
-    """Pequeños multiplos: caja + puntos (una hoja-fecha por punto) para cada indice."""
+                  flag_col: str | None = None, cols: int = 4, pairs: pd.DataFrame | None = None):
+    """Pequeños multiplos: caja + puntos (una hoja-fecha por punto) para cada indice.
+
+    Con `pairs` (la tabla de `effect_matrix`/`pairwise_effects` de la misma vista) agrega sobre las
+    cajas los corchetes de significancia con el **mismo p de Holm** de la matriz de δ de Cliff, como en
+    las figuras del paper. Con mas de 3 grupos solo se dibujan los pares significativos.
+    """
     rows = int(np.ceil(len(indices) / cols))
     fig = make_subplots(rows=rows, cols=cols, subplot_titles=indices, horizontal_spacing=0.06, vertical_spacing=0.12)
     rng = np.random.default_rng(7)
+    formas, textos = [], []
     for k, idx in enumerate(indices):
         r, c = k // cols + 1, k % cols + 1
         for j, g in enumerate(order):
@@ -86,20 +122,39 @@ def distributions(data: pd.DataFrame, group_col: str, order: list[str], colors: 
             fig.add_trace(go.Scatter(
                 x=jit, y=d[idx], mode="markers", showlegend=False, legendgroup=g,
                 marker=dict(size=6, color=np.where(flagged, "rgba(0,0,0,0)", color).tolist(),
-                            line=dict(width=np.where(flagged, 1.4, 0.6).tolist(), color=np.where(flagged, color, "#111211").tolist())),
+                            line=dict(width=np.where(flagged, 1.4, 0.6).tolist(), color=np.where(flagged, color, BG).tolist())),
                 customdata=np.stack([d["leaf"], d["campaign_date"].map(lambda x: f"{pd.Timestamp(x):%d/%m/%Y}"),
                                      np.where(flagged, " · marcada por control de calidad", "")], axis=-1),
                 hovertemplate=f"<b>{g}</b> %{{customdata[0]}} · %{{customdata[1]}}<br>{idx} = %{{y:.4f}}%{{customdata[2]}}<extra></extra>",
             ), row=r, col=c)
         fig.update_xaxes(tickvals=list(range(len(order))), ticktext=[""] * len(order), range=[-0.6, len(order) - 0.2],
                          showgrid=False, row=r, col=c)
+        if pairs is not None and not pairs.empty:
+            xref, yref = subplot_refs(fig, r, c)
+            vals = data.loc[data[group_col].isin(order), idx].to_numpy(dtype=float)
+            f, t, rango_y = _brackets(pairs[pairs["Índice"] == idx], order, vals, xref, yref,
+                                      solo_significativos=len(order) > MAX_GRUPOS_TODOS_LOS_PARES)
+            formas += f
+            textos += t
+            if rango_y is not None:
+                fig.update_yaxes(range=list(rango_y), row=r, col=c)
     for a in fig.layout.annotations:
         a.font = dict(size=12, color=INK)
+    defer_layout_items(fig, shapes=formas, annotations=textos)
     fig.update_layout(legend=dict(y=1.04 + 0.02 * (3 - rows)), boxgap=0.3)
-    chart(fig, height=250 * rows + 40)
+    chart(fig, height=270 * rows + 40)
+    notas = []
     if flag_col:
-        st.caption("Cada punto es una hoja-fecha (media de p1–p3). Los círculos vacíos son hojas-fecha marcadas por el "
-                   "control de calidad; se muestran pero no alteran la caja.")
+        notas.append("Cada punto es una hoja-fecha (media de p1–p3). Los círculos vacíos son hojas-fecha marcadas por el "
+                     "control de calidad; se muestran pero no alteran la caja.")
+    if pairs is not None and not pairs.empty:
+        notas.append(
+            r"Corchetes: Mann–Whitney U entre cada par, p ajustado por Holm sobre todos los índices y pares (el mismo "
+            r"p de la matriz de δ de Cliff): \*\*\* p < 0.001 · \*\* p < 0.01 · \* p < 0.05 · ns no significativo."
+            + (" Con más de 3 grupos solo se dibujan los pares significativos." if len(order) > MAX_GRUPOS_TODOS_LOS_PARES else "")
+        )
+    if notas:
+        st.caption(" ".join(notas))
 
 
 def global_test(data: pd.DataFrame, group_col: str, indices: list[str]):

@@ -8,10 +8,12 @@ el patron esperado) sin romper el resto del pipeline.
 
 from __future__ import annotations
 
+import hashlib
 import re
 from dataclasses import dataclass
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 import streamlit as st
 
@@ -333,12 +335,28 @@ def _discover_records(data_dir: Path) -> list[FileRecord]:
     return records
 
 
+@st.cache_data(ttl=60, show_spinner=False)
+def data_fingerprint(data_dir: Path = DATA_DIR) -> str:
+    """Huella compacta (sha1) del listado de data/: ruta, fecha de modificacion y tamaño de cada .txt.
+
+    Recorrer data/ cuesta ~0.4 s con miles de archivos, asi que se recalcula como mucho cada 60 s
+    (o al instante con «Volver a escanear data/», que limpia los caches). Es una cadena y no una
+    tupla de miles de elementos porque es la clave de cache de `scan_dataset` y `processed_store`.
+    """
+    h = hashlib.sha1()
+    for entrada in _dir_fingerprint(data_dir):
+        h.update(repr(entrada).encode("utf-8", "surrogateescape"))
+    return h.hexdigest()
+
+
 @st.cache_data(show_spinner="Escaneando data/...")
-def scan_dataset(_fingerprint: tuple) -> pd.DataFrame:
+def scan_dataset(fingerprint: str) -> pd.DataFrame:
     """Devuelve un DataFrame con un registro por archivo .txt encontrado en data/.
 
-    _fingerprint se usa solo para invalidar el cache de Streamlit cuando
-    cambia el contenido de la carpeta; no se usa dentro de la funcion.
+    `fingerprint` (de `data_fingerprint`) no se usa dentro de la funcion: es la clave del cache,
+    asi que cambia y fuerza un nuevo escaneo cuando llegan mediciones nuevas. Hasta 2026-11-16 el
+    parametro se llamaba `_fingerprint` y Streamlit **no hashea** los parametros con guion bajo,
+    asi que el cache nunca se invalidaba solo.
     """
     records = _discover_records(DATA_DIR)
     if not records:
@@ -357,7 +375,7 @@ def raw_dataset(data_dir: Path = DATA_DIR) -> pd.DataFrame:
     """Dataset crudo, sin los filtros de `get_dataset()` (Pacamara No susceptible,
     `EXCLUDED_SPECIES`). Uso principal: la seccion "Calidad de datos" de Inicio, para poder
     contar cuantos archivos se excluyen y por que sin duplicar la logica de filtrado."""
-    return scan_dataset(_dir_fingerprint(data_dir))
+    return scan_dataset(data_fingerprint(data_dir))
 
 
 def get_dataset(data_dir: Path = DATA_DIR) -> pd.DataFrame:
@@ -374,8 +392,7 @@ def get_dataset(data_dir: Path = DATA_DIR) -> pd.DataFrame:
     `make_ieee_figures.py` lo heredan sin tener que repetir la condicion. Si se necesita el
     dataset crudo, usar `_discover_records(DATA_DIR)`.
     """
-    fingerprint = _dir_fingerprint(data_dir)
-    df = scan_dataset(fingerprint)
+    df = scan_dataset(data_fingerprint(data_dir))
     if df.empty:
         return df
     mask_excluir = (df["species"] == "Pacamara") & (df["susceptibility"] == "No susceptible")
@@ -383,14 +400,31 @@ def get_dataset(data_dir: Path = DATA_DIR) -> pd.DataFrame:
     return df[~mask_excluir].reset_index(drop=True)
 
 
-@st.cache_data(show_spinner=False)
-def read_spectrasuite(path: str, _mtime: float) -> pd.DataFrame:
-    """Parsea un archivo .txt exportado por SpectraSuite.
+_END_MARKER = "Data<<<<< Espectral Procesado Extremo"
 
-    _mtime solo se usa para invalidar el cache si el archivo se sobrescribe.
-    """
-    with open(path, "r", encoding="latin-1", errors="replace") as f:
-        lineas = f.read().splitlines()
+
+def _parse_body_fast(lineas: list[str]) -> np.ndarray | None:
+    """Camino rapido: todas las lineas de datos tienen exactamente dos numeros (formato normal de
+    SpectraSuite). Convierte todo de una vez con numpy en lugar de linea por linea. Devuelve None
+    si el bloque no tiene esa forma exacta, y entonces se usa el camino lento (mismo resultado,
+    tolera lineas raras)."""
+    cuerpo = [l for l in lineas if l.strip()]
+    if cuerpo and _END_MARKER in cuerpo[-1]:
+        cuerpo = cuerpo[:-1]
+    if not cuerpo:
+        return None
+    tokens = "\n".join(cuerpo).replace(",", ".").split()
+    if len(tokens) != 2 * len(cuerpo):
+        return None
+    try:
+        return np.array(tokens, dtype=float).reshape(-1, 2)
+    except ValueError:
+        return None
+
+
+def parse_spectrasuite_text(texto: str, path: str = "") -> pd.DataFrame:
+    """Parsea el contenido de un .txt de SpectraSuite (ver `read_spectrasuite`)."""
+    lineas = texto.splitlines()
 
     inicio = None
     for i, linea in enumerate(lineas):
@@ -399,6 +433,11 @@ def read_spectrasuite(path: str, _mtime: float) -> pd.DataFrame:
             break
     if inicio is None:
         raise ValueError(f"No se encontro el marcador de inicio de datos en {path}")
+
+    rapido = _parse_body_fast(lineas[inicio:])
+    if rapido is not None:
+        df = pd.DataFrame(rapido, columns=["wavelength", "reflectance"])
+        return df.drop_duplicates(subset="wavelength").sort_values("wavelength").reset_index(drop=True)
 
     filas = []
     for linea in lineas[inicio:]:
@@ -418,6 +457,21 @@ def read_spectrasuite(path: str, _mtime: float) -> pd.DataFrame:
     df = pd.DataFrame(filas, columns=["wavelength", "reflectance"])
     df = df.drop_duplicates(subset="wavelength").sort_values("wavelength").reset_index(drop=True)
     return df
+
+
+def read_spectrasuite_file(path: str) -> pd.DataFrame:
+    """Lee y parsea un .txt de SpectraSuite, sin cache de Streamlit (uso: almacen precalculado)."""
+    with open(path, "r", encoding="latin-1", errors="replace") as f:
+        return parse_spectrasuite_text(f.read(), path)
+
+
+@st.cache_data(show_spinner=False)
+def read_spectrasuite(path: str, _mtime: float) -> pd.DataFrame:
+    """Parsea un archivo .txt exportado por SpectraSuite.
+
+    _mtime solo se usa para invalidar el cache si el archivo se sobrescribe.
+    """
+    return read_spectrasuite_file(path)
 
 
 def load_spectrum(path: str) -> pd.DataFrame:

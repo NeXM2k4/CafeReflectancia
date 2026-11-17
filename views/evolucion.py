@@ -41,12 +41,13 @@ from src.temporal import (
     temporal_selection,
     with_gaps,
 )
-from src.ui import chart, index_column_config, note, page_header, section, sidebar_footer
+from src.ui import add_hlines_all, add_vlines, chart, index_column_config, note, page_header, section, sidebar_footer
 
 from src.temporal_plots import (
     GRID,
     SPECIES_ORDER,
     TEXT_MUTED,
+    TREND_CAPTION,
     TimePlots,
     date_color,
     leaf_name as _leaf_name,
@@ -172,7 +173,7 @@ GRUPOS_ESP = [
      lambda d: d["leaf_type"] == "T"),
     ("M, variedades susceptibles", "M susc.", LEAF_TYPE_COLORS["M"], "solid",
      lambda d: (d["leaf_type"] == "M") & d["species"].isin(species_with_rust)),
-    ("M, controles sin roya", "M control", "#9AA0A6", "dash",
+    ("M, controles sin roya", "M control", "#7A7F86", "dash",
      lambda d: (d["leaf_type"] == "M") & ~d["species"].isin(species_with_rust)),
     ("R1 (con roya)", "R1", LEAF_TYPE_COLORS["R"], "solid", lambda d: d["leaf_type"] == "R"),
 ]
@@ -193,6 +194,23 @@ dist_gaps = with_gaps(
     T_CERO,
 ) if not dist_all.empty else dist_all
 
+
+def _q(trends: pd.DataFrame, variable: str) -> pd.Series:
+    """p FDR de la tendencia de cada hoja (indice = leaf_id) para una variable de una familia."""
+    t = trends[trends["Variable"] == variable] if not trends.empty else trends
+    return t.set_index("leaf_id")["p FDR"] if not t.empty else pd.Series(dtype=float)
+
+
+def _q_indice(prefijo: str, indice: str) -> pd.Series:
+    """Valor y Δ comparten el p (Mann–Kendall no cambia al restar una constante a la serie); Δ* tiene
+    su propia familia. Es el mismo p FDR que muestran las tablas de tendencias."""
+    return _q(trends_star if prefijo == DELTA_STAR else trends_val, indice)
+
+
+trends_sev = {c: leaf_trends(sev_gaps, [c], "similitud") for c in ("sev_S1", "sev_S2")}
+trends_dist = leaf_trends(dist_all, ["distancia"], "distancia") if not dist_all.empty else pd.DataFrame()
+TREND_SHORT = ("Puntos sin unir; línea = tendencia suavizada (LOWESS). Al final de cada línea, la tendencia de "
+               r"Mann–Kendall con FDR: \*\*\* p < 0.001 · \*\* p < 0.01 · \* p < 0.05 · ns.")
 
 tp = TimePlots(xcol, x_title, SUSCEPTIBLES, species_with_rust, pts)
 add_leaf_lines = tp.add_leaf_lines
@@ -244,6 +262,7 @@ with tab_res:
     section("Cómo leer esta vista")
     st.markdown(
         f"""
+- **Gráficos en el tiempo:** {TREND_CAPTION}
 - **Unidad:** la hoja-fecha. Se promedian las repeticiones de cada punto y luego los puntos p{TEMPORAL_VALID_POINTS[0]}–p{TEMPORAL_VALID_POINTS[-1]}; las barras de error son ±1 DE **entre puntos** (heterogeneidad de la hoja ese día).
 - **Las hojas envejecen:** T1 y T2 eran tiernas el 29/06 y son las mismas hojas doce semanas después. Por eso existen Δ\* y los controles sin roya (Canefora, Cuscatleco).
 - **Mediciones sucesivas no son independientes:** los p-valores de tendencia son optimistas; se informa la autocorrelación de residuos como diagnóstico.
@@ -309,16 +328,20 @@ with tab_mad:
                                        "sirve como señal complementaria, no como reemplazo del promedio.")
         fig = m_panels(ts_gaps, prefijo + index_sel, f"{modo}: {index_sel}",
                        sdcol=f"sd {index_sel}" if not (prefijo or ver_pts) else None, zero_line=bool(prefijo),
-                       pts_col=index_sel if ver_pts else None, worst_col=PEOR + index_sel if ver_peor else None)
+                       pts_col=index_sel if ver_pts else None, worst_col=PEOR + index_sel if ver_peor else None,
+                       trend_q=_q_indice(prefijo, index_sel))
         chart(fig)
+        st.caption(TREND_SHORT)
     with tab_sev:
         st.caption(
             "Similitud relativa con roya con anclas S1: 0 % = hojas T en las primeras campañas, 100 % = promedio de "
             "R1. Sirve para comparar hojas entre sí; ver la advertencia de circularidad en «Similitud relativa con roya en el tiempo» (pestaña Detalle por hoja)."
         )
-        fig = m_panels(sev_gaps, "sev_S1", "Similitud relativa con roya (%)", scale=100, risk_lines=True)
+        fig = m_panels(sev_gaps, "sev_S1", "Similitud relativa con roya (%)", scale=100, risk_lines=True,
+                       trend_q=_q(trends_sev["sev_S1"], "sev_S1"))
         fig.update_yaxes(range=[-3, 105])
         chart(fig)
+        st.caption(TREND_SHORT)
     with tab_dist:
         st.caption(
             "Distancia RMS en z-scores (sin FSR) entre cada hoja y R1 **el mismo día**. Más baja = más "
@@ -328,20 +351,24 @@ with tab_mad:
         if dist_gaps.empty:
             st.info("No hay datos de distancia.")
         else:
-            fig = m_panels(dist_gaps, "distancia", "Distancia a R1 (z RMS)", show_rust=False)
+            fig = m_panels(dist_gaps, "distancia", "Distancia a R1 (z RMS)", show_rust=False,
+                           trend_q=_q(trends_dist, "distancia"))
             fig.update_yaxes(rangemode="tozero")
             chart(fig)
+            st.caption(TREND_SHORT)
     with tab_all:
         fig = make_subplots(rows=len(DIST_INDICES), cols=len(SUSCEPTIBLES), shared_xaxes=True, shared_yaxes=True,
                             subplot_titles=[f"{sp} · {idx}" for idx in DIST_INDICES for sp in SUSCEPTIBLES],
                             vertical_spacing=0.035, horizontal_spacing=0.04)
         for i, idx in enumerate(DIST_INDICES, start=1):
-            m_panels(ts_gaps, prefijo + idx, idx, zero_line=bool(prefijo), rows=len(DIST_INDICES), row=i, fig=fig)
+            m_panels(ts_gaps, prefijo + idx, idx, zero_line=bool(prefijo), rows=len(DIST_INDICES), row=i, fig=fig,
+                     trend_q=_q_indice(prefijo, idx))
         style_time_axis(fig, 1900)
         fig.update_xaxes(title_text=None)
         for ann in fig.layout.annotations:
             ann.font.size = 11
         chart(fig)
+        st.caption(TREND_SHORT)
 
     section("¿El cambio de las maduras es propio de la variedad susceptible?",
             "Cada tendencia de una hoja madura de Bourbon o Pacamara se contrasta con las hojas maduras de los controles "
@@ -437,9 +464,8 @@ with tab_edad:
             for x, y, texto in etiquetas:
                 fig.add_annotation(x=x, y=y, text=texto, showarrow=False, xanchor="left", xshift=6,
                                    font=dict(size=11, color=TEXT_MUTED))
-        for w in INDEX_WAVELENGTHS:
-            fig.add_vline(x=w, line_width=1, line_dash="dot", line_color="rgba(160,160,160,0.18)")
-        fig.add_hline(y=0, line_width=1, line_color="rgba(220,220,220,0.55)")
+        add_vlines(fig, INDEX_WAVELENGTHS, "rgba(60,60,55,0.16)", dash="dot")
+        fig.add_hline(y=0, line_width=1, line_color="rgba(40,40,35,0.45)")
         fig.update_layout(height=480, margin=dict(t=30, b=10, r=70), hovermode="x unified",
                           legend=dict(orientation="h", yanchor="bottom", y=1.02, x=0, font=dict(size=11)),
                           xaxis_title="Longitud de onda (nm)", yaxis_title=f"Tendencia ({unidad})")
@@ -466,7 +492,7 @@ with tab_edad:
         fig = go.Figure(go.Heatmap(
             z=mat.to_numpy(), x=mat.columns.to_numpy(), y=[i.replace("|", " · ") for i in mat.index],
             zmin=-zmax, zmax=zmax, zmid=0,
-            colorscale=[[0, "#2F6DB5"], [0.5, "#3A3F47"], [1, "#C8553D"]],
+            colorscale=[[0, "#2F6DB5"], [0.5, "#EFEFEC"], [1, "#C8402F"]],
             colorbar=dict(title=dict(text="por semana", side="top"), thickness=14),
             hovertemplate="%{y}<br>%{x:.0f} nm · %{z:+.2f}<extra></extra>",
         ))
@@ -500,8 +526,8 @@ with tab_edad:
     # ---------- 3. roya frente a envejecimiento ----------
     section("La misma hoja semana a semana: R1 frente a una hoja tierna")
     st.caption(
-        "Todos los espectros medios de una misma hoja, uno por fecha, con el color de más apagado (primera "
-        "fecha) a más brillante (última). Abajo, el cambio de cada fecha respecto de la primera medición. "
+        "Todos los espectros medios de una misma hoja, uno por fecha, con el color de más claro (primera "
+        "fecha) a más oscuro (última). Abajo, el cambio de cada fecha respecto de la primera medición. "
         "**R1 ya tenía roya el 15/07, su primera medición:** se ve cómo sigue cambiando una hoja infectada, "
         "no cómo empieza la infección. La hoja tierna sí muestra su maduración completa desde el 29/06. "
         "La curva hundida de Pacamara R1 es el 10/08 atípico: el control de calidad de la barra lateral la excluye."
@@ -544,7 +570,7 @@ with tab_edad:
                 fig.add_trace(go.Scatter(x=c["wavelength"], y=y - base, mode="lines", showlegend=False,
                                          line=dict(color=color, width=1.4), hovertemplate=hover),
                               row=2 * i + 2, col=j)
-            fig.add_hline(y=0, line_width=1, line_color="rgba(220,220,220,0.5)", row=2 * i + 2, col=j)
+            fig.add_hline(y=0, line_width=1, line_color="rgba(40,40,35,0.4)", row=2 * i + 2, col=j)
 
     ticks = [0, 0.25, 0.5, 0.75, 1]
     for j, (leaf, tipo, _) in enumerate(paneles):
@@ -559,8 +585,7 @@ with tab_edad:
                               ticktext=[f"{(f0 + pd.Timedelta(days=round(t * span))):%d/%m}" for t in ticks]),
             ),
         ), row=1, col=1)
-    for w in INDEX_WAVELENGTHS:
-        fig.add_vline(x=w, line_width=1, line_dash="dot", line_color="rgba(160,160,160,0.15)")
+    add_vlines(fig, INDEX_WAVELENGTHS, "rgba(60,60,55,0.14)", dash="dot")
     fig.update_layout(height=1180, margin=dict(t=40, b=90), hovermode="closest")
     fig.update_xaxes(gridcolor=GRID)
     fig.update_yaxes(gridcolor=GRID, zeroline=False)
@@ -668,23 +693,25 @@ with tab_det:
     tab_uno, tab_todos = st.tabs(["Un índice", "Los 7 índices"])
     with tab_uno:
         fig = go.Figure()
-        add_leaf_lines(fig, sp_ts, prefijo + index_sel, sdcol=f"sd {index_sel}")
+        add_leaf_lines(fig, sp_ts, prefijo + index_sel, sdcol=f"sd {index_sel}", trend_q=_q_indice(prefijo, index_sel))
         if prefijo:
-            fig.add_hline(y=0, line_width=1, line_color="rgba(200,200,200,0.4)")
+            fig.add_hline(y=0, line_width=1, line_color="rgba(40,40,35,0.35)")
         style_time_axis(fig, 460, yaxis_title=f"{modo}: {index_sel}")
         chart(fig)
+        st.caption(TREND_SHORT)
 
     with tab_todos:
         fig = make_subplots(rows=4, cols=2, shared_xaxes=True, subplot_titles=DIST_INDICES,
                             vertical_spacing=0.07, horizontal_spacing=0.07)
         for i, idx in enumerate(DIST_INDICES):
             add_leaf_lines(fig, sp_ts, prefijo + idx, row=i // 2 + 1, col=i % 2 + 1,
-                           showlegend=(i == 0), direct_labels=False)
-            if prefijo:
-                fig.add_hline(y=0, line_width=1, line_color="rgba(200,200,200,0.4)", row=i // 2 + 1, col=i % 2 + 1)
+                           showlegend=(i == 0), direct_labels=False, trend_q=_q_indice(prefijo, idx))
+        if prefijo:
+            add_hlines_all(fig, 0)
         style_time_axis(fig, 1000)
         fig.update_xaxes(title_text=None)
         chart(fig)
+        st.caption(TREND_SHORT + " En esta vista solo se marca la significancia; el nombre de cada hoja está en la leyenda.")
 
     # ---------- 4. tendencias ----------
     section("Tendencias por hoja")
@@ -733,13 +760,13 @@ with tab_det:
                 error_x=dict(type="data", symmetric=False,
                              array=g["IC95 sup"] - g["Pendiente / semana"],
                              arrayminus=g["Pendiente / semana"] - g["IC95 inf"],
-                             thickness=1.5, width=0, color="rgba(200,200,200,0.6)"),
+                             thickness=1.5, width=0, color="rgba(60,60,55,0.45)"),
                 marker=dict(size=10, symbol=simbolo, color=[LEAF_TYPE_COLORS[h[0]] for h in g["Hoja"]],
                             line=dict(width=2, color=[LEAF_TYPE_COLORS[h[0]] for h in g["Hoja"]])),
                 customdata=np.stack([g["p FDR"], g["n fechas"]], axis=-1),
                 hovertemplate="%{y}<br>%{x:.5f} / semana<br>p FDR %{customdata[0]:.4f} · n %{customdata[1]}<extra></extra>",
             ))
-        fig.add_vline(x=0, line_width=1, line_color="rgba(200,200,200,0.5)")
+        fig.add_vline(x=0, line_width=1, line_color="rgba(40,40,35,0.4)")
         fig.update_layout(
             height=max(340, 26 * len(forest) + 110), margin=dict(t=80, b=10),
             title=dict(text=f"Pendiente de {index_sel} ({familia}) por hoja — color = tipo de hoja",
@@ -804,10 +831,15 @@ with tab_det:
         st.info(f"{species} no tiene hoja con roya: el ancla con roya es la media de las variedades que sí tienen (referencia estimada).")
 
     sev = severity_timeseries(files, anchors, clip=not sin_recorte)
-    sev_sp = sev[(sev["species"] == species) & sev["leaf"].isin(sel_leaves)]
     baselines_global = severity_baselines(df)
     sev_u = leaf_date_similarity(ts, baselines_global)[["leaf_id", "campaign_date", "similitud"]].rename(columns={"similitud": "sev_U"})
-    sev_sp = sev_sp.merge(sev_u, on=["leaf_id", "campaign_date"], how="left")
+    sev = sev.merge(sev_u, on=["leaf_id", "campaign_date"], how="left")
+    sev_sp = sev[(sev["species"] == species) & sev["leaf"].isin(sel_leaves)]
+    # Tendencia de la misma serie que se grafica (anclas y recorte elegidos), con FDR sobre todas
+    # las variedades y hojas, igual que la tabla de tendencias.
+    tr_sev = leaf_trends(ts[["species", "leaf_id", "leaf", "leaf_type", "campaign_date", "dia"]]
+                         .merge(sev[["leaf_id", "campaign_date", sev_col]], on=["leaf_id", "campaign_date"]),
+                         [sev_col], "similitud")
     sev_plot = with_gaps(
         ts[["species", "leaf_id", "leaf", "leaf_type", "leaf_num", "campaign_id", "campaign_date",
             "dia", "n_puntos", "qc_atipico"]]
@@ -815,24 +847,25 @@ with tab_det:
         T_CERO,
     )
     fig = go.Figure()
-    add_leaf_lines(fig, sev_plot, sev_col, scale=100)
+    add_leaf_lines(fig, sev_plot, sev_col, scale=100, trend_q=_q(tr_sev, sev_col))
     if not sin_recorte:
         for nivel, nombre_clase, _, _ in RUST_RISK_CLASSES:
             if nivel in (0.0, 1.0):
                 continue
             fig.add_hline(
-                y=nivel * 100, line_dash="dot", line_width=1, line_color="rgba(180,180,180,0.3)",
+                y=nivel * 100, line_dash="dot", line_width=1, line_color="rgba(60,60,55,0.3)",
                 annotation_text=nombre_clase,
                 annotation_font_size=9, annotation_font_color=TEXT_MUTED, annotation_position="top left",
             )
     else:
         for y, t in [(0, "ancla sana"), (100, "ancla con roya")]:
-            fig.add_hline(y=y, line_width=1, line_color="rgba(200,200,200,0.5)", annotation_text=t,
+            fig.add_hline(y=y, line_width=1, line_color="rgba(40,40,35,0.4)", annotation_text=t,
                           annotation_font_size=10, annotation_font_color=TEXT_MUTED, annotation_position="top left")
     style_time_axis(fig, 440, yaxis_title="Similitud relativa con roya (%)")
     if not sin_recorte:
         fig.update_yaxes(range=[-3, 105])
     chart(fig)
+    st.caption(TREND_SHORT)
 
     r1 = sev_sp[sev_sp["leaf_type"] == "R"].sort_values("campaign_date")
     if not r1.empty:
@@ -883,10 +916,11 @@ with tab_det:
                 T_CERO,
             )
             fig = go.Figure()
-            add_leaf_lines(fig, dist_plot, "distancia")
+            add_leaf_lines(fig, dist_plot, "distancia", trend_q=_q(trends_dist, "distancia"))
             style_time_axis(fig, 400, yaxis_title="Distancia a R1 (z RMS)")
             fig.update_yaxes(rangemode="tozero")
             chart(fig)
+            st.caption(TREND_SHORT)
             qc_r = ts_qc[(ts_qc["species"] == species) & (ts_qc["leaf_type"] == "R") & ts_qc["qc_atipico"]]
             if not qc_r.empty and not exclude_qc:
                 fechas_r = ", ".join(f"{d:%d/%m}" for d in qc_r["campaign_date"])
@@ -987,9 +1021,8 @@ with tab_det:
         diffs = np.concatenate([np.abs(_dyn(l, f)[2]) for l in leaves_ok for f in fechas])
         dmax = np.nanmax(diffs) * 1.1 if np.isfinite(np.nanmax(diffs)) and np.nanmax(diffs) > 0 else 1
 
-        for w in INDEX_WAVELENGTHS:
-            fig.add_vline(x=w, line_width=1, line_dash="dot", line_color="rgba(160,160,160,0.22)")
-        fig.add_hline(y=0, line_width=1, line_color="rgba(200,200,200,0.5)", row=2, col=1)
+        add_vlines(fig, INDEX_WAVELENGTHS, "rgba(60,60,55,0.18)", dash="dot")
+        fig.add_hline(y=0, line_width=1, line_color="rgba(40,40,35,0.4)", row=2, col=1)
 
         play = dict(frame=dict(duration=frame_ms, redraw=True), fromcurrent=True, transition=dict(duration=0))
         fig.update_layout(
@@ -997,7 +1030,7 @@ with tab_det:
             title=dict(text=_titulo(fechas[0]), font=dict(size=14), y=0.985, yref="container", yanchor="top"),
             legend=dict(orientation="h", yanchor="bottom", y=1.01, x=0, font=dict(size=11)),
             updatemenus=[dict(
-                type="buttons", direction="left", x=0, y=-0.08, xanchor="left", yanchor="top", showactive=False, bgcolor="#1B1C1B", bordercolor="#3A3B38", font=dict(color="#ECEBE6", size=12),
+                type="buttons", direction="left", x=0, y=-0.08, xanchor="left", yanchor="top", showactive=False, bgcolor="#F4F4F1", bordercolor="#BDBCB5", font=dict(color="#1F201E", size=12),
                 buttons=[
                     dict(label="▶ Reproducir", method="animate", args=[None, play]),
                     dict(label="⏸ Pausa", method="animate",
@@ -1005,7 +1038,7 @@ with tab_det:
                 ],
             )],
             sliders=[dict(
-                active=0, x=0.2, y=-0.06, len=0.8, currentvalue=dict(prefix="Fecha: ", font=dict(size=12, color="#ECEBE6")), bgcolor="#3A3B38", activebgcolor="#D9D6CC", bordercolor="#3A3B38", tickcolor="#3A3B38", font=dict(color="#8E8C85", size=11),
+                active=0, x=0.2, y=-0.06, len=0.8, currentvalue=dict(prefix="Fecha: ", font=dict(size=12, color="#1F201E")), bgcolor="#E2E1DC", activebgcolor="#2B2C2A", bordercolor="#BDBCB5", tickcolor="#BDBCB5", font=dict(color="#6B6A64", size=11),
                 steps=[dict(label=fr.name, method="animate",
                             args=[[fr.name], dict(mode="immediate", frame=dict(duration=0, redraw=True),
                                                    transition=dict(duration=0))])

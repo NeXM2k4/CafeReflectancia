@@ -15,8 +15,6 @@ algunas campañas por motivos de campo y no se promedian con los demas).
 
 from __future__ import annotations
 
-import hashlib
-import pickle
 from pathlib import Path
 
 import numpy as np
@@ -24,8 +22,8 @@ import pandas as pd
 import streamlit as st
 
 from src.config import INDEX_DEFINITIONS, SPECIES_PENDING_LABEL, TEMPORAL_VALID_POINTS
-from src.parser import leaf_label, load_spectrum
-from src.processing import calcular_indices, prepare_spectrum
+from src.parser import data_fingerprint, leaf_label
+from src.store import compute_from_bytes, processed_store
 
 # Todos los indices que calcula calcular_indices(), en el orden de config.INDEX_DEFINITIONS.
 INDICES = list(INDEX_DEFINITIONS)
@@ -85,42 +83,7 @@ def quality_flags(leaf_dates: pd.DataFrame) -> pd.DataFrame:
     out["qc_flag"] = out["qc_atipico"] | out["qc_implausible"]
     return out
 
-_CACHE_DIR = Path(__file__).resolve().parent.parent / ".state"
-_CACHE_FILE = _CACHE_DIR / "file_indices_cache.pkl"
-
-
-def _dataset_signature(sel: pd.DataFrame) -> str:
-    """Huella de los archivos que entran a la tabla: cambia si se agrega, edita o quita uno."""
-    h = hashlib.sha1()
-    for p, m in sorted(zip(sel["path"], sel["mtime_ns"])):
-        h.update(f"{p}|{m}\n".encode("utf-8", "surrogateescape"))
-    return h.hexdigest()
-
-
-def _load_disk_cache(signature: str) -> pd.DataFrame | None:
-    """Cache en disco para que la primera carga tras reiniciar Streamlit no vuelva a leer y
-    procesar cada espectro (20-40 s con el dataset actual). Solo se usa si la huella coincide
-    exactamente; cualquier cambio en data/ la invalida sola."""
-    if not _CACHE_FILE.exists():
-        return None
-    try:
-        with open(_CACHE_FILE, "rb") as f:
-            saved_signature, df = pickle.load(f)
-    except (pickle.PickleError, OSError, EOFError, ValueError):
-        return None
-    return df if saved_signature == signature else None
-
-
-def _save_disk_cache(signature: str, df: pd.DataFrame) -> None:
-    try:
-        _CACHE_DIR.mkdir(parents=True, exist_ok=True)
-        with open(_CACHE_FILE, "wb") as f:
-            pickle.dump((signature, df), f, protocol=pickle.HIGHEST_PROTOCOL)
-    except OSError:
-        pass  # el cache en disco es una optimizacion, no algo critico
-
-
-@st.cache_data(show_spinner="Calculando indices espectrales de cada archivo...")
+@st.cache_data(show_spinner="Preparando la tabla de índices…")
 def file_index_table(dataset: pd.DataFrame) -> tuple[pd.DataFrame, list[tuple[str, str]]]:
     """Indices espectrales por archivo, para todo archivo con nombre reconocido y especie real.
 
@@ -129,47 +92,40 @@ def file_index_table(dataset: pd.DataFrame) -> tuple[pd.DataFrame, list[tuple[st
     comparativo. No filtra por punto: cada pagina decide si usa `point_table`/`leaf_date_table`
     (solo p1-p3) o el detalle completo.
 
-    Devuelve `(tabla, errores_de_lectura)`. Cachea en memoria (Streamlit) y en disco (huella de
-    archivos), asi que reiniciar el proceso no obliga a releer todos los espectros.
+    Los indices salen del almacen precalculado (`src/store.py`, versionado en `data_cache/`):
+    mismo calculo que antes (`calcular_indices(prepare_spectrum(...))`), hecho una sola vez por
+    archivo. Devuelve `(tabla, errores_de_lectura)`.
     """
     sel = dataset[dataset["name_recognized"] & (dataset["species"] != SPECIES_PENDING_LABEL)]
-    signature = _dataset_signature(sel)
-    cached = _load_disk_cache(signature)
-    if cached is not None:
-        return cached, []
+    store = processed_store(data_fingerprint())
+    calc = store.reindex(sel["path"])
+    for path in calc.index[calc["rel_path"].isna()]:
+        # Archivo fuera de data/ (p. ej. un dataset de prueba): se calcula directo, sin guardarlo.
+        idx, _, err = compute_from_bytes(Path(path).read_bytes(), path)
+        calc.loc[path, [*INDICES, "error", "rel_path"]] = [*idx.values(), err, path]
+    error = calc["error"].fillna("").astype(str).to_numpy()
+    errores = [(f, e) for f, e in zip(sel["filename"], error) if e]
+    ok = error == ""
+    sel, calc = sel[ok], calc[ok]
 
-    filas, errores = [], []
-    for row in sel.itertuples():
-        try:
-            idx = calcular_indices(prepare_spectrum(load_spectrum(row.path)))
-        except ValueError as e:
-            errores.append((row.filename, str(e)))
-            continue
-        hoja = leaf_label(row.session, row.session_num)
-        filas.append({
-            "species": row.species,
-            "leaf_type": row.session,
-            "leaf_num": int(row.session_num),
-            "leaf": hoja,
-            "leaf_id": f"{row.species}|{hoja}",
-            "campaign_id": row.campaign_id,
-            "campaign_date": pd.Timestamp(row.campaign_date),
-            "point": int(row.point),
-            "repetition": row.repetition,
-            "health_status": row.health_status,
-            "susceptibility": row.susceptibility,
-            "leaf_maturity": row.leaf_maturity,
-            "filename": row.filename,
-            "path": row.path,
-            **idx,
-        })
-    df = pd.DataFrame(filas)
-    if errores:
-        # Un archivo con error de lectura no es un problema de "que datos entraron a la cache":
-        # se recalcula siempre (no se guarda en disco) para no esconder el error en una sesion
-        # futura si el archivo se corrige.
-        return df, errores
-    _save_disk_cache(signature, df)
+    hoja = [leaf_label(s, n) for s, n in zip(sel["session"], sel["session_num"])]
+    df = pd.DataFrame({
+        "species": sel["species"].to_numpy(),
+        "leaf_type": sel["session"].to_numpy(),
+        "leaf_num": sel["session_num"].astype(int).to_numpy(),
+        "leaf": hoja,
+        "leaf_id": [f"{s}|{h}" for s, h in zip(sel["species"], hoja)],
+        "campaign_id": sel["campaign_id"].to_numpy(),
+        "campaign_date": pd.to_datetime(sel["campaign_date"]).to_numpy(),
+        "point": sel["point"].astype(int).to_numpy(),
+        "repetition": sel["repetition"].to_numpy(),
+        "health_status": sel["health_status"].to_numpy(),
+        "susceptibility": sel["susceptibility"].to_numpy(),
+        "leaf_maturity": sel["leaf_maturity"].to_numpy(),
+        "filename": sel["filename"].to_numpy(),
+        "path": sel["path"].to_numpy(),
+        **{i: calc[i].to_numpy(dtype=float) for i in INDICES},
+    })
     return df, errores
 
 

@@ -69,7 +69,8 @@ SANA_LABEL = "Sana"
 # Antes de esta sesion de pulido, "Madura"/"Tierna" tenian un color en `GROUP_COLORS` (paginas
 # 2-4) y otro distinto en `LEAF_TYPE_COLORS` (pagina 5) — el mismo concepto se veia de dos
 # colores segun la pagina. Ahora todo el codigo lee de aqui. Paleta validada contra daltonismo
-# (ver `evoluciontemporal.md` seccion 11: ΔE deutan 9.4 sobre fondo oscuro #0E1117) para M/T/R;
+# (ver `evoluciontemporal.md` seccion 11: ΔE deutan 9.4 sobre fondo oscuro #0E1117; revalidada sobre
+# blanco el 2026-11-16: ΔE deutan 9.4 y contraste >= 3:1 para M/T/R/V) para M/T/R;
 # "V" usa un cuarto tono que no se probo formalmente (categoria minoritaria, sin serie temporal).
 #
 # IMPORTANTE: "Madura" y "Tierna" son el estado sanitario **desconocido**, no "sano" — la app
@@ -83,6 +84,9 @@ LEAF_TYPE_HELP = {
     "V": "Hoja vieja (madurez adicional a M/T); en varias campañas no se registro su especie.",
 }
 LEAF_NUM_DASH = {1: "solid", 2: "dash"}
+# Forma del marcador por numero de hoja (las series temporales van como puntos sin unir desde
+# 2026-11-16, asi que el trazo de la linea ya no alcanza para distinguir M1 de M2).
+LEAF_NUM_SYMBOL = {1: "circle", 2: "square"}
 
 
 def leaf_type_label(code: str, short: bool = False) -> str:
@@ -146,7 +150,7 @@ PALETTE = [
     "#3A86FF", "#CAFFBF",
 ]
 
-COLOR_AVG = "#FAFAFA"  # claro y neutro para maxima legibilidad sobre el tema oscuro
+COLOR_AVG = "#1F201E"  # neutro y oscuro: maxima legibilidad sobre el fondo blanco
 
 # Colores estables por grupo (madurez, susceptibilidad, estado sanitario) para graficas
 # comparativas. Madura/Tierna/Vieja/Con roya se toman de LEAF_TYPE_COLORS (fuente unica, ver
@@ -164,7 +168,7 @@ GROUP_COLORS = {
 # Paleta reducida y de alto contraste para agrupar curvas de espectros por "Hoja"
 # (mismo set validado de 8 tonos usado para SPECIES_COLORS, en el mismo orden)
 SPECTRA_GROUP_PALETTE = [
-    "#3987E5", "#008300", "#D55181", "#C98500",
+    "#3987E5", "#008300", "#D55181", "#B97A00",
     "#199E70", "#D95926", "#9085E9", "#E66767",
 ]
 
@@ -173,7 +177,7 @@ SPECIES_COLORS = {
     "Bourbon": "#3987E5",
     "Canefora": "#008300",
     "Cuscatleco": "#D55181",
-    "Pacamara": "#C98500",
+    "Pacamara": "#B97A00",  # #C98500 hasta 2026-11-16: 2.99:1 sobre blanco, bajo el minimo de 3:1
     SPECIES_PENDING_LABEL: "#8A8A8A",
 }
 

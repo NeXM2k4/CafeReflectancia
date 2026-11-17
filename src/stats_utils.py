@@ -30,6 +30,16 @@ _DELTA_CLARA = _DELTA_GRANDE
 _DELTA_MODERADA = _DELTA_MEDIANO
 
 
+def stars(p) -> str:
+    """Notacion de significancia de las figuras del paper: *** p<0.001, ** p<0.01, * p<0.05, ns.
+
+    Devuelve '' si no hay p (menos de 2 datos por grupo, o serie sin test de tendencia).
+    """
+    if p is None or pd.isna(p):
+        return ""
+    return "***" if p < 0.001 else "**" if p < 0.01 else "*" if p < 0.05 else "ns"
+
+
 def effect_label(delta: float) -> str:
     """Magnitud del delta de Cliff en palabras (Romano et al. 2006)."""
     if delta is None or np.isnan(delta):

@@ -1,17 +1,18 @@
 [theme]
-base = "dark"
+# Tema claro (fondo blanco) desde 2026-11-16, a pedido del equipo.
+base = "light"
 # Acento neutro: los colores con significado (tipo de hoja, especie, similitud) quedan
 # reservados a los datos y nunca se reutilizan para botones o controles.
-primaryColor = "#D9D6CC"
-backgroundColor = "#111211"
-secondaryBackgroundColor = "#1B1C1B"
-textColor = "#ECEBE6"
-borderColor = "#2E2F2D"
-dataframeBorderColor = "#262725"
-dataframeHeaderBackgroundColor = "#1B1C1B"
+primaryColor = "#2B2C2A"
+backgroundColor = "#FFFFFF"
+secondaryBackgroundColor = "#F4F4F1"
+textColor = "#1F201E"
+borderColor = "#DAD9D3"
+dataframeBorderColor = "#E6E5E0"
+dataframeHeaderBackgroundColor = "#F4F4F1"
 showWidgetBorder = true
 showSidebarBorder = true
-linkColor = "#8FB8E8"
+linkColor = "#1F5FAD"
 linkUnderline = false
 baseRadius = "6px"
 buttonRadius = "6px"
@@ -23,13 +24,13 @@ headingFontWeights = [600, 600, 600, 600, 600, 600]
 headingFontSizes = ["1.9rem", "1.35rem", "1.1rem", "1rem", "0.95rem", "0.9rem"]
 metricValueFontSize = "1.75rem"
 metricValueFontWeight = 500
-codeBackgroundColor = "#1B1C1B"
-codeTextColor = "#C3C2B7"
-chartCategoricalColors = ["#3987E5", "#D95926", "#199E70", "#C98500", "#D55181", "#008300", "#9085E9", "#E66767"]
+codeBackgroundColor = "#F4F4F1"
+codeTextColor = "#3A3B38"
+chartCategoricalColors = ["#3987E5", "#D95926", "#199E70", "#B97A00", "#D55181", "#008300", "#9085E9", "#E66767"]
 
 [theme.sidebar]
-backgroundColor = "#161716"
-secondaryBackgroundColor = "#1F201F"
+backgroundColor = "#F7F7F5"
+secondaryBackgroundColor = "#EDEDE9"
 
 [client]
 toolbarMode = "minimal"

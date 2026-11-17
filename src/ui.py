@@ -18,13 +18,15 @@ from src.config import INDEX_SHEET, LEAF_TYPE_COLORS, LEAF_TYPE_HELP, LEAF_TYPE_
 APP_TITLE = "Reflectancia foliar y roya del café"
 APP_SHORT = "Reflectancia · Roya"
 
-# Tinta y superficies (tema oscuro de .streamlit/config.toml).
-INK = "#ECEBE6"
-INK_2 = "#C3C2B7"
-INK_MUTED = "#8E8C85"
-GRID = "#262725"
-AXIS = "#3A3B38"
-SURFACE = "#1B1C1B"
+# Tinta y superficies (tema claro de .streamlit/config.toml; fondo blanco desde 2026-11-16).
+INK = "#1F201E"
+INK_2 = "#3F403C"
+INK_MUTED = "#6B6A64"
+GRID = "#ECEBE7"
+AXIS = "#BDBCB5"
+SURFACE = "#F6F6F3"
+BORDER = "#E2E1DC"
+BG = "#FFFFFF"
 
 # Orden fijo de tipos de hoja en toda la app: por edad/estado, nunca alfabetico.
 LEAF_ORDER = ["T", "M", "V", "R"]
@@ -51,13 +53,13 @@ pio.templates["reflec"] = go.layout.Template(
         xaxis=_axis, yaxis=_axis,
         legend=dict(font=dict(size=11, color=INK_2), bgcolor="rgba(0,0,0,0)", itemsizing="constant",
                     orientation="h", yanchor="bottom", y=1.02, x=0, title_text=""),
-        hoverlabel=dict(bgcolor="#222322", bordercolor=AXIS, font=dict(family="IBM Plex Sans", size=12, color=INK)),
+        hoverlabel=dict(bgcolor=BG, bordercolor=AXIS, font=dict(family="IBM Plex Sans", size=12, color=INK)),
         margin=dict(l=10, r=16, t=36, b=10),
         title=dict(font=dict(size=13, color=INK), x=0, xanchor="left", y=0.98),
         coloraxis=dict(colorbar=dict(outlinewidth=0, thickness=10, tickfont=dict(size=11, color=INK_MUTED))),
     )
 )
-pio.templates.default = "plotly_dark+reflec"
+pio.templates.default = "plotly_white+reflec"
 
 PLOT_CONFIG = {
     "displaylogo": False,
@@ -66,12 +68,77 @@ PLOT_CONFIG = {
 }
 
 
+def defer_layout_items(fig, shapes=(), annotations=()):
+    """Acumula formas y anotaciones para agregarlas a la figura de una sola vez (en `chart`).
+
+    Plotly revalida *todas* las formas/anotaciones existentes cada vez que se agrega una o se
+    reasigna la lista: en una grilla de 14 paneles, agregarlas panel por panel costaba ~8 s por
+    recarga. Los helpers de graficos acumulan aqui y `chart()` (o `flush_layout_items`) aplica.
+    """
+    pend = getattr(fig, "_rf_pending", None)
+    if pend is None:
+        pend = {"shapes": [], "annotations": []}
+        fig._rf_pending = pend  # plotly admite atributos privados (con guion bajo) en la figura
+    pend["shapes"].extend(shapes)
+    pend["annotations"].extend(annotations)
+
+
+def flush_layout_items(fig):
+    """Agrega a la figura lo acumulado con `defer_layout_items` (una sola validacion)."""
+    pend = getattr(fig, "_rf_pending", None)
+    if pend and (pend["shapes"] or pend["annotations"]):
+        fig.update_layout(shapes=list(fig.layout.shapes) + pend["shapes"],
+                          annotations=list(fig.layout.annotations) + pend["annotations"])
+        pend["shapes"], pend["annotations"] = [], []
+
+
 def chart(fig, height: int | None = None, key: str | None = None):
     """`st.plotly_chart` con la plantilla de la app (no la de Streamlit) y exportacion a PNG x3."""
+    flush_layout_items(fig)
     if height is not None:
         fig.update_layout(height=height)
     fig.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
     st.plotly_chart(fig, width="stretch", theme=None, config=PLOT_CONFIG, key=key)
+
+
+def _subplot_axes(fig) -> list[tuple[str, str]]:
+    """Pares (x, y) de cada subgrafico, p. ej. [('x', 'y'), ('x2', 'y2'), ...]."""
+    pares = []
+    for clave in fig.layout:
+        if clave.startswith("xaxis"):
+            x = "x" + clave[len("xaxis"):]
+            ancla = fig.layout[clave].anchor
+            pares.append((x, ancla if ancla and ancla != "free" else "y" + clave[len("xaxis"):]))
+    return pares or [("x", "y")]
+
+
+def subplot_refs(fig, row, col) -> tuple[str, str]:
+    """Referencias ('x2', 'y2') del subgrafico (row, col) de `make_subplots`; ('x', 'y') sin subgraficos."""
+    if row is None or col is None:
+        return "x", "y"
+    ref = fig._grid_ref[row - 1][col - 1][0]  # noqa: SLF001 (no hay API publica equivalente)
+    x_key, y_key = ref.layout_keys
+    return x_key.replace("axis", ""), y_key.replace("axis", "")
+
+
+def add_vlines(fig, xs, color: str, width: float = 1, dash: str | None = None):
+    """Lineas verticales en todos los subgraficos, agregadas en una sola operacion.
+
+    `fig.add_vline` agrega las formas de a una y Plotly revalida todas las anteriores en cada
+    llamada: con subgraficos y una docena de bandas tardaba ~8 s por recarga de pagina.
+    """
+    nuevas = [dict(type="line", xref=x, yref=f"{y} domain", x0=w, x1=w, y0=0, y1=1, layer="below",
+                   line=dict(color=color, width=width, dash=dash))
+              for x, y in _subplot_axes(fig) for w in xs]
+    defer_layout_items(fig, shapes=nuevas)
+
+
+def add_hlines_all(fig, y: float, color: str = "rgba(40,40,35,0.35)", width: float = 1):
+    """Linea horizontal en `y` en todos los subgraficos, en una sola operacion (ver `add_vlines`)."""
+    nuevas = [dict(type="line", xref=f"{x} domain", yref=yy, x0=0, x1=1, y0=y, y1=y, layer="below",
+                   line=dict(color=color, width=width))
+              for x, yy in _subplot_axes(fig)]
+    defer_layout_items(fig, shapes=nuevas)
 
 
 def rgba(hex_color: str, alpha: float) -> str:
@@ -79,12 +146,13 @@ def rgba(hex_color: str, alpha: float) -> str:
     return f"rgba({int(h[0:2], 16)},{int(h[2:4], 16)},{int(h[4:6], 16)},{alpha})"
 
 
-# Escala secuencial de similitud (un solo tono, oscuro = bajo, se funde con el fondo).
+# Escala secuencial de similitud (un solo tono, claro = bajo, se funde con el fondo blanco).
 SIMILARITY_SCALE = [
-    [0.0, "#1E2020"], [0.2, "#3A2B24"], [0.45, "#7A3E25"], [0.7, "#C25424"], [1.0, "#F08A5D"],
+    [0.0, "#F7F4F0"], [0.2, "#F5DCCB"], [0.45, "#EBA37E"], [0.7, "#D2622E"], [1.0, "#9A3A12"],
 ]
-# Divergente para efectos con signo: azul (negativo) - gris - rojo (positivo).
-DIVERGING_SCALE = [[0.0, "#3987E5"], [0.5, "#383835"], [1.0, "#E66767"]]
+# Divergente para efectos con signo: azul (negativo) - gris claro - rojo (positivo).
+DIVERGING_SCALE = [[0.0, "#2F6DB5"], [0.5, "#EFEFEC"], [1.0, "#C8402F"]]
+
 
 
 # --------------------------------------------------------------------------------------------
@@ -99,7 +167,7 @@ h1, h2, h3 {{ letter-spacing: -0.005em; }}
 hr {{ margin: 1.4rem 0 1rem 0 !important; border-color: {GRID} !important; }}
 
 div[data-testid="stMetric"] {{
-  background: {SURFACE}; border: 1px solid #2A2B29; border-radius: 6px; padding: .8rem 1rem .7rem;
+  background: {SURFACE}; border: 1px solid {BORDER}; border-radius: 6px; padding: .8rem 1rem .7rem;
 }}
 div[data-testid="stMetricLabel"] p {{ color: {INK_MUTED}; font-size: .78rem; text-transform: uppercase; letter-spacing: .04em; }}
 div[data-testid="stMetricValue"] {{ font-variant-numeric: tabular-nums; }}
@@ -131,7 +199,7 @@ div[data-testid="stMetricValue"] {{ font-variant-numeric: tabular-nums; }}
   padding-top: .7rem; margin-top: 1rem; }}
 .rf-foot b {{ color: {INK_2}; font-weight: 500; }}
 
-.rf-card {{ border: 1px solid #2A2B29; border-radius: 6px; padding: .9rem 1rem; background: {SURFACE}; height: 100%; }}
+.rf-card {{ border: 1px solid {BORDER}; border-radius: 6px; padding: .9rem 1rem; background: {SURFACE}; height: 100%; }}
 .rf-card-k {{ font-size: .7rem; letter-spacing: .08em; text-transform: uppercase; color: {INK_MUTED}; }}
 .rf-card-t {{ font-size: 1rem; font-weight: 600; color: {INK}; margin: .15rem 0 .1rem 0; }}
 .rf-card .rf-card-k {{ font-size: .7rem; letter-spacing: .08em; text-transform: uppercase; color: {INK_MUTED}; }}
@@ -150,19 +218,19 @@ table.rf-table td.strong {{ color: {INK}; font-weight: 500; }}
 
 div[data-testid="stExpander"] details summary p {{ font-size: .92rem; }}
 button[aria-pressed="true"], button[aria-checked="true"] {{
-  background: {INK} !important; border-color: {INK} !important; color: #111211 !important; }}
+  background: {INK} !important; border-color: {INK} !important; color: {BG} !important; }}
 button[aria-pressed="true"] p, button[aria-checked="true"] p {{
-  color: #111211 !important; font-weight: 500; }}
+  color: {BG} !important; font-weight: 500; }}
 button[aria-pressed="false"] p {{ color: {INK_MUTED}; }}
 </style>
 """
 
 NOTE_KINDS = {
-    "leer": ("Cómo leer", "#8FB8E8"),
-    "limite": ("Limitación", "#D9A441"),
-    "metodo": ("Método", "#9A9890"),
-    "aviso": ("Atención", "#E66767"),
-    "hallazgo": ("Hallazgo", "#4FB88F"),
+    "leer": ("Cómo leer", "#1F5FAD"),
+    "limite": ("Limitación", "#946200"),
+    "metodo": ("Método", "#6B6A64"),
+    "aviso": ("Atención", "#B83227"),
+    "hallazgo": ("Hallazgo", "#1D7A57"),
 }
 
 

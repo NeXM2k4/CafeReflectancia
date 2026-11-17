@@ -38,8 +38,10 @@ Después del merge, localmente: `git switch main && git pull`.
    ```
    (se obtienen como indica `.streamlit/secrets.toml.example`). Sin esto la app funciona, pero el
    botón de Telegram avisa que faltan credenciales.
-5. **Deploy**. La primera carga tarda unos minutos (instala dependencias y calcula los índices de
-   ~2000 archivos); las siguientes son rápidas.
+5. **Deploy**. La primera vez tarda unos minutos en instalar dependencias. Después, cada arranque
+   en frío (también al "despertar") lee `data_cache/`, el almacén precalculado y versionado, en vez
+   de procesar los miles de espectros: tarda segundos. Si `data_cache/` no está al día con `data/`,
+   la app procesa solo los archivos que faltan (y la prueba `tests/test_store.py` lo avisa).
 6. Para restringir el acceso: **Settings → Sharing → Only specific people** (por correo).
 
 ### Limitaciones del hosting gratuito que conviene conocer

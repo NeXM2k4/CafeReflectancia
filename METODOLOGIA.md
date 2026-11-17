@@ -122,6 +122,10 @@ Vistas «Índices por tipo de hoja» y «Comparación entre variedades», sobre 
 - **Prueba global** (`summarize_indices`): Kruskal–Wallis (3 o más grupos) o Mann–Whitney (2), con
   Holm entre índices. Solo dice si algún grupo difiere; el desglose es la tabla por pares.
 - El detalle técnico (Shapiro–Wilk, ANOVA/Tukey o Kruskal/Dunn con `compare_groups`) queda plegado.
+- **Asteriscos en las cajas** (`viz_groups.distributions`, desde 2026-11-16): corchetes entre pares
+  con la notación de las figuras del paper (\*\*\* p < 0.001, \*\* p < 0.01, \* p < 0.05, ns). Usan
+  **el mismo p de Holm** de la matriz de δ de Cliff: no hay un segundo test. Con más de 3 grupos
+  (4 variedades = 6 pares) solo se dibujan los pares significativos, para no tapar las cajas.
 
 Aun con hoja-fecha como unidad, las fechas sucesivas de una misma hoja **no son independientes**:
 los p-valores son optimistas. El tamaño de efecto es la cifra más informativa.
@@ -139,6 +143,20 @@ Pendiente de **Theil–Sen** (por semana, IC 95 %) y test de **Mann–Kendall**,
 vez. Se reporta la autocorrelación de los residuos (r1) como diagnóstico. Una tendencia en una hoja
 M susceptible es "candidata" solo si ninguna hoja M de los controles sin roya cambia en el mismo
 sentido; si también cambia un control, la lectura es "compatible con envejecimiento".
+
+### 7.2b Cómo se dibujan las series en el tiempo (desde 2026-11-16)
+- **Puntos sin unir:** cada punto es una hoja-fecha; unir fechas con segmentos sugería una
+  continuidad que no se midió.
+- **Tendencia suavizada:** LOWESS local lineal (`temporal_plots.lowess_curve`, `statsmodels`) por
+  hoja, sobre los mismos valores graficados y con x = días: `frac = 2/3` (valor clásico de
+  Cleveland, 1979) y 3 iteraciones robustas, que atenúan un día atípico sin borrarlo. Solo con
+  ≥ 5 fechas (el mismo mínimo que los tests). Es **descriptiva**: no tiene p ni intervalo.
+- **Asteriscos al final de cada línea:** el p FDR de §7.2 de esa hoja y esa variable, con la misma
+  notación que las cajas. Familias de corrección: valor y Δ comparten la familia «valor»
+  (Mann–Kendall no cambia al restar una constante a la serie); Δ\* tiene la suya; la similitud
+  (S1, S2 o U, con o sin recorte) y la distancia a R1 se corrigen cada una sobre todas las hojas
+  de todas las variedades. Así la estrella coincide con la columna «p FDR» de las tablas.
+- La forma del marcador distingue el número de hoja (1 = círculo, 2 = cuadrado); el color, el tipo.
 
 ### 7.3 Anclas alternativas para la similitud en el tiempo
 - **S1:** ancla sana = T de las primeras 2 campañas (cuando eran realmente tiernas); ancla con roya

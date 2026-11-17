@@ -8,10 +8,7 @@ cada decision en evoluciontemporal.md.
 
 from __future__ import annotations
 
-import hashlib
-import os
 import warnings
-from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -39,8 +36,9 @@ from src.indices import (
     file_index_table,
     quality_flags,
 )
-from src.parser import load_spectrum
+from src.parser import data_fingerprint, load_spectrum
 from src.processing import prepare_spectrum
+from src.store import GRID as STORE_GRID, processed_store, spectra_matrix
 
 INDICES = list(INDEX_DEFINITIONS)
 # FSR usa las mismas bandas que NDVI: en una distancia, un test multiple o el control de
@@ -336,43 +334,6 @@ def distance_to_rust(files: pd.DataFrame, ts: pd.DataFrame) -> pd.DataFrame:
     return pd.DataFrame(filas)
 
 
-_SPECTRA_CACHE_DIR = Path(__file__).resolve().parent.parent / ".state" / "spectra_cache"
-
-
-def _spectra_signature(files: pd.DataFrame, wl_min: float, wl_max: float, n_points: int) -> str:
-    """Huella de los archivos (ruta + mtime) y de los parametros: cambia si se toca data/."""
-    h = hashlib.sha1(f"{wl_min}|{wl_max}|{n_points}".encode())
-    for row in sorted(zip(files["leaf_id"], files["campaign_date"].astype(str), files["point"], files["path"])):
-        try:
-            mtime = os.stat(row[3]).st_mtime_ns
-        except OSError:
-            mtime = 0
-        h.update(f"{row}|{mtime}".encode("utf-8", "surrogateescape"))
-    return h.hexdigest()
-
-
-def _load_spectra_cache(firma: str) -> pd.DataFrame | None:
-    """Cache en disco de los espectros medios: leerlos otra vez tarda ~9 s con el dataset actual."""
-    archivo = _SPECTRA_CACHE_DIR / f"{firma}.pkl"
-    if not archivo.exists():
-        return None
-    try:
-        return pd.read_pickle(archivo)
-    except Exception:  # noqa: BLE001 (cache corrupto: se recalcula)
-        return None
-
-
-def _save_spectra_cache(firma: str, df: pd.DataFrame) -> None:
-    try:
-        _SPECTRA_CACHE_DIR.mkdir(parents=True, exist_ok=True)
-        existentes = sorted(_SPECTRA_CACHE_DIR.glob("*.pkl"), key=lambda p: p.stat().st_mtime)
-        for viejo in existentes[:-11]:  # conserva solo las ultimas huellas
-            viejo.unlink(missing_ok=True)
-        df.to_pickle(_SPECTRA_CACHE_DIR / f"{firma}.pkl")
-    except OSError:
-        pass  # es una optimizacion, no algo critico
-
-
 @st.cache_data(show_spinner="Calculando espectros medios por hoja y fecha...")
 def leaf_mean_spectra(files: pd.DataFrame, wl_min: float = TEMPORAL_WL_MIN, wl_max: float = X_MAX,
                       n_points: int = TEMPORAL_GRID_POINTS) -> pd.DataFrame:
@@ -380,24 +341,29 @@ def leaf_mean_spectra(files: pd.DataFrame, wl_min: float = TEMPORAL_WL_MIN, wl_m
 
     La grilla es la misma en todos los frames de la animacion: si cambiara entre fechas, parte
     del cambio visible seria artefacto de la interpolacion. Mismos dos pasos que los indices.
+    Con la grilla por defecto, cada espectro suavizado sale del almacen precalculado
+    (`src/store.py`); con otra grilla se lee y suaviza cada archivo.
     """
-    firma = _spectra_signature(files, wl_min, wl_max, n_points)
-    guardado = _load_spectra_cache(firma)
-    if guardado is not None:
-        return guardado
-    resultado = _leaf_mean_spectra_compute(files, wl_min, wl_max, n_points)
-    _save_spectra_cache(firma, resultado)
-    return resultado
+    return _leaf_mean_spectra_compute(files, wl_min, wl_max, n_points)
+
+
+def _file_curves(files: pd.DataFrame, wl_min: float, wl_max: float, n_points: int) -> tuple[np.ndarray, np.ndarray]:
+    """Espectro suavizado de cada archivo interpolado a la grilla (una fila por archivo)."""
+    grid = np.linspace(wl_min, wl_max, n_points)
+    if np.array_equal(grid, STORE_GRID):
+        store = processed_store(data_fingerprint())
+        if files["path"].isin(store.index).all():
+            return grid, spectra_matrix(store, files["path"])
+    return grid, np.array([
+        np.interp(grid, s["wavelength"], s["smooth"], left=np.nan, right=np.nan)
+        for s in (prepare_spectrum(load_spectrum(p)) for p in files["path"])
+    ])
 
 
 def _leaf_mean_spectra_compute(files: pd.DataFrame, wl_min: float, wl_max: float,
                                n_points: int) -> pd.DataFrame:
-    grid = np.linspace(wl_min, wl_max, n_points)
-    curvas = []
-    for row in files.itertuples():
-        spec = prepare_spectrum(load_spectrum(row.path))
-        y = np.interp(grid, spec["wavelength"], spec["smooth"], left=np.nan, right=np.nan)
-        curvas.append(((row.leaf_id, row.campaign_date, row.point), y))
+    grid, matriz = _file_curves(files, wl_min, wl_max, n_points)
+    curvas = [((row.leaf_id, row.campaign_date, row.point), y) for row, y in zip(files.itertuples(), matriz)]
 
     # Recorta la grilla a la cobertura comun: el ultimo pixel del espectrometro cae apenas
     # antes de X_MAX y dejaria un NaN en el borde de cada curva.

@@ -9,7 +9,7 @@ from src.config import LEAF_TYPE_LABELS, SPECIES_PENDING_LABEL, rust_risk_class
 from src.indices import file_index_table, leaf_date_table, quality_flags
 from src.parser import campaign_options, get_dataset, sorted_campaigns
 from src.severity import leaf_date_similarity, severity_baselines
-from src.ui import chart, note, page_header, section, sidebar_footer
+from src.ui import INK, chart, note, page_header, section, sidebar_footer
 
 page_header(
     "Resumen",
@@ -55,14 +55,14 @@ cobertura = (
 z = cobertura.to_numpy(dtype=float)
 fig = go.Figure(go.Heatmap(
     z=z, x=[etiquetas[c][:5] for c in cobertura.columns], y=cobertura.index.tolist(),
-    colorscale=[[0, "#161716"], [0.2, "#1D2733"], [1, "#2D5C92"]], zmin=0, zmax=max(z.max(), 1),
+    colorscale=[[0, "#F6F6F3"], [0.2, "#D6E3F3"], [1, "#2D5C92"]], zmin=0, zmax=max(z.max(), 1),
     showscale=False, xgap=3, ygap=3,
     text=np.where(z > 0, z.astype(int).astype(str), "–"), texttemplate="%{text}",
-    textfont=dict(size=12, color="#ECEBE6"),
+    textfont=dict(size=12),
     hovertemplate="%{y} · %{x}<br>%{z:.0f} hojas medidas<extra></extra>",
 ))
 fig.update_layout(margin=dict(l=0, r=0, t=4, b=0), xaxis=dict(side="top", showgrid=False, ticks=""),
-                  yaxis=dict(autorange="reversed", showgrid=False, ticks="", tickfont=dict(size=12, color="#ECEBE6")))
+                  yaxis=dict(autorange="reversed", showgrid=False, ticks="", tickfont=dict(size=12, color=INK)))
 chart(fig, height=190)
 
 d1, d2, d3 = st.columns(3, gap="large")

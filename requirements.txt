@@ -7,3 +7,4 @@ scikit-posthocs>=0.9
 statsmodels>=0.14
 requests>=2.31
 matplotlib>=3.8
+pyarrow>=14
