@@ -35,6 +35,33 @@ Todo el plan `plan_mejora_app.md` (F0–F6) y la presentación de `plan_presenta
   ~36 s → ~11 s; *Evolución temporal* ~19 s → ~4 s por recarga.
 - Corregido: la huella de `data/` nunca invalidaba el caché (parámetro con guion bajo); ahora los
   archivos nuevos aparecen solos en menos de un minuto.
+- Subido a `main` en `f1d26d4` (incluye `data_cache/`, al día con `data/`: 3471 archivos, 0 por recalcular).
+
+## Pendiente para la próxima sesión: rendimiento en la nube
+El equipo reporta que la app en Streamlit Cloud sigue tardando en arrancar. **Primero medir**, después
+optimizar:
+
+1. **Medir en la nube** (después del push de `f1d26d4`): cuánto tarda y en qué pantalla se queda.
+   - Pantalla de Streamlit antes de la app («in the oven» / «waking up»): es el contenedor de la
+     plataforma; no se arregla desde el código. Opción: otro hosting (`DEPLOY.md` §C).
+   - «Running…» dentro de la app: es nuestro código; seguir con 2 y 3.
+2. **(Recomendada) No releer los ~192 MB de `.txt` al arrancar.** Hoy `store.build_store` calcula el
+   sha1 de cada archivo para verificar el almacén; en el disco de la nube puede ser lo más lento.
+   Propuesta: verificar por ruta + tamaño y dejar la verificación por contenido en
+   `scripts/build_cache.py` y en `tests/test_store.py::test_almacen_versionado_esta_al_dia` (que ya
+   detecta un almacén desactualizado antes de commitear). Riesgo a declarar: un archivo reemplazado
+   por otro del mismo tamaño sin regenerar el almacén pasaría sin detectarse en la app.
+3. **Guardar también resultados derivados** en `data_cache/` (tablas hoja-fecha, tendencias de
+   `leaf_trends`, espectros medios y tendencias espectrales), con la misma huella de método, para que
+   *Evolución temporal* no los recalcule en la primera visita de cada arranque.
+4. Opcional: leer del parquet solo las columnas de índices en las páginas que no usan espectros
+   (Panorama, Estado actual) y cargar los 300 puntos de espectro solo en *Espectros* y *Evolución*.
+
+Referencias de tiempos (local, `AppTest`): imports ~2–3 s; carga del almacén ~1–1.5 s; cálculo por
+página ~1–4 s. Detalle en `docs/plan_fondo_blanco_tendencias_rendimiento.md`.
+
+También pendiente (fuera de rendimiento): *Panorama* todavía dice «semanal, 29/06 a 21/09» y algunas
+notas hablan de «12 semanas»; hay que generar esos textos a partir de los datos.
 
 ## Abierto (no es trabajo de la app)
 - **Datos nuevos (oct–nov):** 18 archivos `Validacion1p*bourbon*.txt` (26/10 y 05/11) no se reconocen
