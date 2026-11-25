@@ -3,7 +3,7 @@
 import pandas as pd
 import streamlit as st
 
-from src.config import LEAF_TYPE_COLORS, LEAF_TYPE_LABELS, SPECIES_PENDING_LABEL
+from src.config import LEAF_TYPE_COLORS, LEAF_TYPE_LABELS, SPECIES_ORDER, SPECIES_PENDING_LABEL
 from src.indices import DISPLAY_INDICES, file_index_table, leaf_date_table, point_table, quality_flags
 from src.parser import get_dataset
 from src.ui import (campaign_range, index_column_config, leaf_legend, leaf_sort, note, page_header,
@@ -25,7 +25,7 @@ files_all, read_errors = file_index_table(df)
 files_all = files_all[files_all["species"] != SPECIES_PENDING_LABEL]
 
 with st.sidebar:
-    especies = [s for s in ["Bourbon", "Pacamara", "Canefora", "Cuscatleco"] if s in set(files_all["species"])]
+    especies = [s for s in SPECIES_ORDER if s in set(files_all["species"])]
     species = st.selectbox("Variedad", especies, key="idx_sp")
     files_sp = files_all[files_all["species"] == species]
     sel_c = campaign_range(df[df["species"] == species], key="idx_camp")

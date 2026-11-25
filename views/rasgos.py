@@ -66,7 +66,7 @@ section("Tendencias por hoja",
         "todos los rasgos a la vez**, así que no cambia al mover los filtros.")
 c1, c2, c3 = st.columns([2, 2, 1])
 sp_pick = c1.pills("Variedad", SPECIES_ORDER, default=[sel.species], selection_mode="multi", key="rasgos_sp") or []
-tipo_pick = c2.pills("Tipo de hoja", ["M", "T", "R"], default=["M", "T", "R"], selection_mode="multi",
+tipo_pick = c2.pills("Tipo de hoja", ["M", "T", "R", "V"], default=["M", "T", "R", "V"], selection_mode="multi",
                      key="rasgos_tipo") or []
 solo_sig = c3.toggle("Solo significativas", value=False, key="rasgos_sig")
 tab = trends[trends["Especie"].isin(sp_pick) & trends["Tipo"].isin(tipo_pick)]

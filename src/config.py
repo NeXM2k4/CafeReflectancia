@@ -36,6 +36,30 @@ EXCLUDED_SPECIES = ()
 # (o el parser) y esta etiqueta puede dejar de usarse.
 SPECIES_PENDING_LABEL = "Vieja (especie pendiente)"
 
+# --- Hojas viejas de Canefora (agregado 2026-11-24) ---
+# El usuario confirmo que la hoja vieja que se mide desde el 17/08 es de Canefora (V1). Solo dos campañas
+# lo dicen en el archivo (17/08: v1p1canefora; 05/10: carpeta Canefora/viejas); las demas vienen en una
+# carpeta "vieja" suelta (p1vieja1.txt...). Esos archivos se asignan a esta especie. SPECIES_PENDING_LABEL
+# queda solo para compatibilidad (ningun archivo actual la recibe).
+VIEJA_SPECIES = "Canefora"
+
+# --- Pacamara resistente (carpeta "No susceptible"), agregada 2026-11-24 ---
+# Pacamara tiene dos plantas: la susceptible (con la hoja con roya R1) y una resistente, que en data/
+# viene en la carpeta "No susceptible". Hasta 2026-11-24 la resistente se excluia del analisis. Ahora es
+# un grupo propio: el parser le asigna esta etiqueta de "especie" y agrega PACAMARA_NS_LEAF_SUFFIX a sus
+# hojas (M1-NS, T2-NS...) para que nunca se mezclen con las de la susceptible en filtros ni tablas.
+# La roya es solo de la planta susceptible (tambien cuando la carpeta Roya esta al lado de las otras).
+# Plan: docs/plan_pacamara_no_susceptible.md
+PACAMARA_NS = "Pacamara no susceptible"
+PACAMARA_NS_LEAF_SUFFIX = "-NS"
+
+# Orden canonico de los grupos en todas las vistas (fuente unica)
+SPECIES_ORDER = ["Bourbon", "Pacamara", PACAMARA_NS, "Canefora", "Cuscatleco"]
+
+# Grupos sin hoja con roya propia que toman el ancla con roya de otro grupo de la misma variedad
+# (en vez de la media de todas las especies con roya, que es lo que usan Canefora y Cuscatleco).
+RUST_ANCHOR_FROM = {PACAMARA_NS: "Pacamara"}
+
 # --- Susceptibilidad (solo aplica a Pacamara por ahora) ---
 SUSCEPTIBILITY_CANONICAL = {
     "susceptible": "Susceptible",
@@ -81,7 +105,7 @@ LEAF_TYPE_HELP = {
     "M": "Hoja madura: sin síntomas visibles, pero su estado sanitario real no se conoce.",
     "T": "Hoja tierna: tejido nuevo, la roya no ha tenido tiempo de manifestarse. Referencia sana.",
     "R": "Hoja con roya confirmada visualmente.",
-    "V": "Hoja vieja (madurez adicional a M/T); en varias campañas no se registro su especie.",
+    "V": "Hoja vieja (más madura que M). Hoy solo Canefora V1, medida del 17/08 al 12/10.",
 }
 LEAF_NUM_DASH = {1: "solid", 2: "dash"}
 # Forma del marcador por numero de hoja (las series temporales van como puntos sin unir desde
@@ -178,6 +202,7 @@ SPECIES_COLORS = {
     "Canefora": "#008300",
     "Cuscatleco": "#D55181",
     "Pacamara": "#B97A00",  # #C98500 hasta 2026-11-16: 2.99:1 sobre blanco, bajo el minimo de 3:1
+    PACAMARA_NS: "#7A4E2D",  # cafe oscuro, misma familia que Pacamara pero mas oscuro (contraste ~7:1 sobre blanco)
     SPECIES_PENDING_LABEL: "#8A8A8A",
 }
 
@@ -212,7 +237,7 @@ ALPHA_SIGNIFICANCE = 0.05
 # Los puntos no son ubicaciones fijas entre campañas y solo p1-p3 son validos (decision del
 # usuario 2026-09-27); p4-p6 aparecen en algunas campañas y se excluyen del analisis temporal.
 TEMPORAL_VALID_POINTS = (1, 2, 3)
-TEMPORAL_LEAF_TYPES = ("M", "T", "R")
+TEMPORAL_LEAF_TYPES = ("M", "T", "R", "V")  # V (hoja vieja de Canefora) desde 2026-11-24
 TEMPORAL_BASELINE_CAMPAIGNS = 2  # las hojas T envejecen: el ancla sana usa solo las primeras fechas
 TEMPORAL_MIN_FECHAS_TENDENCIA = 5
 TEMPORAL_WL_MIN = 440  # por debajo, ~13 % de los espectros con roya da reflectancia negativa

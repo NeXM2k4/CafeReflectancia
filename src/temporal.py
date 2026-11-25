@@ -19,6 +19,7 @@ from statsmodels.stats.multitest import multipletests
 from src.config import (
     ALPHA_SIGNIFICANCE,
     INDEX_DEFINITIONS,
+    RUST_ANCHOR_FROM,
     SPECIES_PENDING_LABEL,
     TEMPORAL_BASELINE_CAMPAIGNS,
     TEMPORAL_GRID_POINTS,
@@ -182,8 +183,9 @@ def severity_anchors(ts: pd.DataFrame) -> dict:
 
     - sana: media de las hojas T en las primeras TEMPORAL_BASELINE_CAMPAIGNS fechas de la
       especie, cuando todavia eran tiernas.
-    - enferma S1: media de los valores hoja-fecha de las hojas R de la especie (o de todas las
-      especies con roya si la especie no tiene hoja R propia).
+    - enferma S1: media de los valores hoja-fecha de las hojas R de la especie; sin hoja R propia,
+      la de su misma variedad si esta en `RUST_ANCHOR_FROM` (Pacamara no susceptible -> Pacamara) y,
+      si no, la de todas las especies con roya.
     - enferma S2 (leave-one-campaign-out): para cada fecha, la misma media sin esa fecha.
     """
     t = _leaf_date_values(ts, "T")
@@ -200,9 +202,15 @@ def severity_anchors(ts: pd.DataFrame) -> dict:
 
     fechas = sorted(ts["campaign_date"].unique())
     loco = {}
+    def _fuente(sp):
+        """Especie cuya hoja R hace de ancla (None = todas las especies con roya)."""
+        if sp in enferma.index:
+            return sp
+        return RUST_ANCHOR_FROM.get(sp) if RUST_ANCHOR_FROM.get(sp) in enferma.index else None
+
     for species in sana.index:
-        propia = species in enferma.index
-        pool = r[r["species"] == species] if propia else r
+        fuente = _fuente(species)
+        pool = r[r["species"] == fuente] if fuente is not None else r
         for fecha in fechas:
             resto = pool[pool["campaign_date"] != fecha]
             loco[(species, fecha)] = resto[INDICES].mean()
@@ -210,9 +218,10 @@ def severity_anchors(ts: pd.DataFrame) -> dict:
     return {
         "sana": sana,
         "enferma": pd.DataFrame(
-            {sp: (enferma.loc[sp] if sp in enferma.index else enferma_global) for sp in sana.index}
+            {sp: (enferma.loc[_fuente(sp)] if _fuente(sp) is not None else enferma_global) for sp in sana.index}
         ).T,
         "referencia_propia": {sp: sp in enferma.index for sp in sana.index},
+        "referencia_de": {sp: _fuente(sp) for sp in sana.index},
         "enferma_loco": pd.DataFrame(loco).T,
         "fechas_ancla_sana": primeras.groupby("species")["campaign_date"].apply(list).to_dict(),
     }
@@ -321,11 +330,15 @@ def distance_to_rust(files: pd.DataFrame, ts: pd.DataFrame) -> pd.DataFrame:
     El z-score usa media y SD de los valores por punto de las hojas T en las primeras
     TEMPORAL_BASELINE_CAMPAIGNS fechas (12 valores en Bourbon/Pacamara). Se excluye FSR.
     Mas baja = el espectro de la hoja se parece mas al de la hoja con roya ese dia.
+    Un grupo sin R propia de `RUST_ANCHOR_FROM` (Pacamara no susceptible) se compara con la R1 de su
+    misma variedad (Pacamara); el z-score sigue usando las hojas T del propio grupo.
     """
     puntos = point_table(files)
     filas = []
     for species, g in ts.groupby("species"):
         r = g[g["leaf_type"] == "R"]
+        if r.empty and species in RUST_ANCHOR_FROM:
+            r = ts[(ts["species"] == RUST_ANCHOR_FROM[species]) & (ts["leaf_type"] == "R")]
         if r.empty:
             continue
         pt = puntos[(puntos["species"] == species) & (puntos["leaf_type"] == "T")]

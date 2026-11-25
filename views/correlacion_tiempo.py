@@ -27,7 +27,7 @@ NORM_NAME = {"area": "área 440–900 nm", "nir": "meseta NIR 750–900 nm"}
 
 @st.cache_data(show_spinner="Calculando ρ de todas las hojas...", max_entries=8)
 def _all_leaves(include_sin: bool, excl: bool, norm_method: str):
-    """ρ de Spearman por λ de las 18 hojas (cruda y normalizada) y tabla resumen por hoja y región."""
+    """ρ de Spearman por λ de todas las hojas (cruda y normalizada) y tabla resumen por hoja y región."""
     c = spectral_page.load_context(include_sin, excl)
     rows, rho = [], {"raw": [], "norm": []}
     pf = {"raw": [], "norm": []}

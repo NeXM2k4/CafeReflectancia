@@ -39,7 +39,7 @@ python -m pytest tests/
 | | **Cambio espectral y PCA** | Cuánto cambió cada λ respecto de las primeras campañas y cuáles son las direcciones principales de cambio |
 | | **Rasgos espectrales** | Lo que los índices no dan: posición del borde rojo, pico verde, pozo de clorofila, ángulo espectral |
 | Datos y operación | **Datos y calidad** | Inventario y todo lo excluido o marcado, con el motivo |
-| | **Alerta de campo** | Revisar mediciones nuevas y enviar el aviso por Telegram (con vista previa) |
+| | **Alerta de campo** | *Oculta desde 2026-11-24* (ver `METODOLOGIA.md` §8). Revisar mediciones nuevas y enviar el aviso por Telegram |
 
 ## Agregar una campaña nueva
 
@@ -53,7 +53,7 @@ python -m pytest tests/
 3. Abrir la aplicación (si ya estaba abierta, ve los archivos nuevos en menos de un minuto, o al
    instante con «Volver a escanear data/» en *Datos y calidad*).
 4. Revisar *Datos y calidad*: que no aparezcan archivos sin reconocer ni marcas inesperadas.
-5. En *Alerta de campo*: «Revisar novedades» → leer la vista previa → «Enviar a Telegram».
+5. (*Alerta de campo* está oculta por ahora; ver `METODOLOGIA.md` §8.)
 
 No hace falta tocar código mientras los archivos sigan la convención de nombres
 (`docs/bitacora.md` §4).
@@ -93,12 +93,14 @@ tests/                  pruebas de humo de todas las vistas e interacciones
 - **`DEPLOY.md`**: publicar la rama y desplegar.
 - **`plan_mejora_app.md`**, **`plan_presentacion.md`**, **`PROGRESO_MEJORA_APP.md`**: planes y
   bitácora de la mejora de la aplicación.
-- **`plan_mejora_paper.md`**: plan del artículo (pausado hasta cerrar la aplicación).
+- **`plan_mejora_paper.md`**: plan del artículo (ya entregado; histórico).
 - **`evoluciontemporal.md`**: diseño y hallazgos del análisis temporal.
 - **`docs/`**: historia del proyecto; no describe el comportamiento actual.
 
 ## Limitaciones (leer antes de sacar conclusiones)
 
+- **Pacamara tiene dos plantas:** la susceptible y una resistente («Pacamara no susceptible», hojas
+  M1-NS… ), que se analizan como grupos separados.
 - **Una sola hoja con roya por variedad** susceptible. Lo que se ve de «con roya» describe esa
   hoja, no una población.
 - Los puntos p1–p3 **no son ubicaciones fijas** entre campañas.

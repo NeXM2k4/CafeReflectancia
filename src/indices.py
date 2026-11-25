@@ -108,7 +108,7 @@ def file_index_table(dataset: pd.DataFrame) -> tuple[pd.DataFrame, list[tuple[st
     ok = error == ""
     sel, calc = sel[ok], calc[ok]
 
-    hoja = [leaf_label(s, n) for s, n in zip(sel["session"], sel["session_num"])]
+    hoja = [leaf_label(s, n, sp) for s, n, sp in zip(sel["session"], sel["session_num"], sel["species"])]
     df = pd.DataFrame({
         "species": sel["species"].to_numpy(),
         "leaf_type": sel["session"].to_numpy(),

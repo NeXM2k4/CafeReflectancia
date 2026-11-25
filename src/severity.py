@@ -16,7 +16,7 @@ import numpy as np
 import pandas as pd
 import streamlit as st
 
-from src.config import TEMPORAL_VALID_POINTS
+from src.config import RUST_ANCHOR_FROM, TEMPORAL_VALID_POINTS
 from src.indices import DISPLAY_INDICES, file_index_table, leaf_date_table, quality_flags
 from src.parser import leaf_label
 from src.processing import calcular_indices, prepare_spectrum, severity_score
@@ -38,7 +38,9 @@ def severity_baselines(dataset: pd.DataFrame) -> dict:
     La hoja Tierna se usa como ancla sana porque la roya no ha tenido tiempo de manifestarse
     en tejido nuevo. Una especie sin muestras de roya propias usa como ancla con roya el
     promedio combinado de todas las que si las tienen, y el dict la marca con
-    `referencia_propia=False` (hoy eso aplica a Canefora y Cuscatleco).
+    `referencia_propia=False` (hoy eso aplica a Canefora y Cuscatleco). Excepcion: los grupos de
+    `config.RUST_ANCHOR_FROM` (Pacamara no susceptible) toman la hoja con roya de su misma variedad
+    (Pacamara); quedan con `referencia_propia=False` y `referencia_de="Pacamara"`.
 
     **Unidad: hoja-fecha, no archivo** (cada fecha pesa igual) y sin las hojas-fecha marcadas
     por control de calidad. Solo p1-p3 (`leaf_date_table`). FSR queda fuera de las anclas: no
@@ -60,12 +62,19 @@ def severity_baselines(dataset: pd.DataFrame) -> dict:
     baselines: dict = {}
     for species in sana.index:
         tiene_referencia_propia = species in enferma_especie.index
-        enferma = enferma_especie.loc[species] if tiene_referencia_propia else enferma_global
+        fuente = RUST_ANCHOR_FROM.get(species)
+        if tiene_referencia_propia:
+            enferma = enferma_especie.loc[species]
+        elif fuente in enferma_especie.index:
+            enferma = enferma_especie.loc[fuente]
+        else:
+            enferma = enferma_global
         # Rango observado del indice en las hojas-fecha de referencia de esa especie: es lo
         # que la alerta muestra al lado del valor, para saber si esta alto o bajo para su especie.
         filas_especie = limpio[limpio["species"] == species]
         baselines[species] = {
             "referencia_propia": tiene_referencia_propia,
+            "referencia_de": species if tiene_referencia_propia else (fuente if fuente in enferma_especie.index else None),
             "indices": {
                 idx_name: {
                     "sana": sana.loc[species, idx_name],
@@ -157,7 +166,7 @@ def leaf_severity_reports(new_df: pd.DataFrame, baselines: dict) -> list[dict]:
             "species": row.species,
             "campaign": row.campaign_id,
             "campaign_date": row.campaign_date,
-            "hoja": leaf_label(row.session, row.session_num),
+            "hoja": leaf_label(row.session, row.session_num, row.species),
             "punto": row.point,
             **idx,
         })

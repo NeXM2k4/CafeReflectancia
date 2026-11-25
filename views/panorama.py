@@ -5,7 +5,7 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
-from src.config import LEAF_TYPE_LABELS, SPECIES_PENDING_LABEL, rust_risk_class
+from src.config import LEAF_TYPE_LABELS, SPECIES_ORDER, SPECIES_PENDING_LABEL, rust_risk_class
 from src.indices import file_index_table, leaf_date_table, quality_flags
 from src.parser import campaign_options, get_dataset, sorted_campaigns
 from src.severity import leaf_date_similarity, severity_baselines
@@ -15,7 +15,7 @@ page_header(
     "Resumen",
     "Panorama del estudio",
     "Espectros de reflectancia foliar (espectrómetro de contacto, 440–1000 nm) de cuatro variedades "
-    "de café, medidos semana a semana sobre las mismas hojas para estudiar cómo se ve la roya "
+    "de café (Pacamara con dos plantas: una susceptible y una resistente), medidos semana a semana sobre las mismas hojas para estudiar cómo se ve la roya "
     "(<i>Hemileia vastatrix</i>) en el espectro y cómo cambian las hojas sin síntomas.",
 )
 
@@ -33,8 +33,8 @@ fechas = pd.to_datetime(reales["campaign_date"])
 c1, c2, c3, c4, c5 = st.columns(5)
 c1.metric("Espectros", f"{len(df):,}", help="Archivos .txt válidos tras las exclusiones de «Datos y calidad».")
 c2.metric("Campañas", reales["campaign_id"].nunique(), help=f"{fechas.min():%d/%m/%Y} a {fechas.max():%d/%m/%Y}, una por semana aprox.")
-c3.metric("Variedades", reales["species"].nunique(), help="Bourbon y Pacamara (susceptibles) · Canefora y Cuscatleco (controles sin roya).")
-c4.metric("Hojas seguidas", ld["leaf_id"].nunique(), help="Hojas físicas identificadas (M1, M2, T1, T2, R1 por variedad) medidas en varias campañas.")
+c3.metric("Grupos de plantas", reales["species"].nunique(), help="Bourbon y Pacamara (susceptibles, con hoja con roya) · Pacamara no susceptible (planta resistente) · Canefora y Cuscatleco (controles sin roya).")
+c4.metric("Hojas seguidas", ld["leaf_id"].nunique(), help="Hojas físicas identificadas (M1, M2, T1, T2, R1 por grupo; M1-NS… en Pacamara no susceptible) medidas en varias campañas.")
 c5.metric("Hojas-fecha", len(ld), help="Unidad de análisis: una hoja en una campaña (media de p1–p3).")
 
 # --------------------------------------------------------------------------------------------
@@ -49,7 +49,7 @@ cobertura = (
     ld.groupby(["species", "campaign_id"])["leaf"].nunique()
     .unstack(fill_value=0)
     .reindex(columns=orden, fill_value=0)
-    .reindex(["Bourbon", "Pacamara", "Canefora", "Cuscatleco"])
+    .reindex(SPECIES_ORDER)
     .dropna(how="all")
 )
 z = cobertura.to_numpy(dtype=float)
@@ -116,8 +116,7 @@ RUTAS = [
      "separa el cambio por envejecimiento del cambio propio de la roya.",
      "views/evolucion.py", "Evolución temporal"),
     ("Datos y operación", "¿Qué entra al análisis?",
-     "**Datos y calidad** lista todo lo excluido o marcado y por qué. **Alerta de campo** revisa las mediciones "
-     "nuevas y prepara el aviso por Telegram.",
+     "**Datos y calidad** lista todo lo excluido o marcado y por qué.",
      "views/datos_calidad.py", "Datos y calidad"),
 ]
 for col, (kick, tit, cuerpo, destino, nombre) in zip(st.columns(3, gap="medium"), RUTAS):

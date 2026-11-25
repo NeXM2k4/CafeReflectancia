@@ -9,6 +9,7 @@ from plotly.subplots import make_subplots
 from src.config import (
     INDEX_WAVELENGTHS,
     LEAF_TYPE_COLORS,
+    RUST_ANCHOR_FROM,
     RUST_RISK_CLASSES,
     TEMPORAL_BASELINE_CAMPAIGNS,
     TEMPORAL_MIN_FECHAS_TENDENCIA,
@@ -306,7 +307,7 @@ def _tab_res():
         f"""
 - **Gráficos en el tiempo:** {TREND_CAPTION}
 - **Unidad:** la hoja-fecha. Se promedian las repeticiones de cada punto y luego los puntos p{TEMPORAL_VALID_POINTS[0]}–p{TEMPORAL_VALID_POINTS[-1]}; las barras de error son ±1 DE **entre puntos** (heterogeneidad de la hoja ese día).
-- **Las hojas envejecen:** T1 y T2 eran tiernas el 29/06 y son las mismas hojas doce semanas después. Por eso existen Δ\* y los controles sin roya (Canefora, Cuscatleco).
+- **Las hojas envejecen:** T1 y T2 eran tiernas el 29/06 y son las mismas hojas doce semanas después. Por eso existen Δ\* y los controles sin roya (Pacamara no susceptible, Canefora, Cuscatleco).
 - **Mediciones sucesivas no son independientes:** los p-valores de tendencia son optimistas; se informa la autocorrelación de residuos como diagnóstico.
 - **La similitud de esta vista usa por defecto otras anclas (S1)** que «Estado actual»: el ancla tierna son las hojas T de las {TEMPORAL_BASELINE_CAMPAIGNS} primeras campañas. La opción U reproduce la de toda la aplicación.
 - Términos técnicos (Δ\*, FDR, Theil–Sen, S1/S2/U): ver «Método y glosario».
@@ -775,7 +776,7 @@ def _tab_det():
     m3.metric(
         "Controles sin roya con tendencia",
         f"{int(ctrl['Significativa'].sum())} / {len(ctrl)}",
-        help="Canefora y Cuscatleco no tienen roya: una tendencia ahí no puede atribuirse a la roya. "
+        help="Pacamara no susceptible (planta resistente), Canefora y Cuscatleco no tienen roya: una tendencia ahí no puede atribuirse a la roya. "
              "Si una hoja de Bourbon/Pacamara muestra la misma tendencia que un control del mismo tipo, "
              "lo más probable es maduración o estación.",
         border=True,
@@ -870,7 +871,11 @@ def _tab_det():
         "elimina, y U tiene el mismo problema de fondo (una sola hoja define su propia referencia). "
         "Sirve para comparar hojas entre sí, no como medida absoluta de progresión.")
     if species not in species_with_rust:
-        st.info(f"{species} no tiene hoja con roya: el ancla con roya es la media de las variedades que sí tienen (referencia estimada).")
+        _fuente = anchors.get("referencia_de", {}).get(species)
+        if _fuente:
+            st.info(f"{species} no tiene hoja con roya: el ancla con roya es la hoja R de {_fuente}, la misma variedad.")
+        else:
+            st.info(f"{species} no tiene hoja con roya: el ancla con roya es la media de las variedades que sí tienen (referencia estimada).")
 
     sev = severity_timeseries(files, anchors, clip=not sin_recorte)
     baselines_global = severity_baselines(df)
@@ -927,7 +932,7 @@ def _tab_det():
         fechas_sana = anchors["fechas_ancla_sana"].get(species, [])
         st.markdown(
             f"Ancla sana: hojas T en {', '.join(f'{pd.Timestamp(f):%d/%m}' for f in fechas_sana)}. "
-            f"Ancla con roya: {'hoja R propia' if anchors['referencia_propia'].get(species) else 'media de las variedades con roya'} "
+            f"Ancla con roya: {'hoja R propia' if anchors['referencia_propia'].get(species) else ('hoja R de ' + anchors['referencia_de'][species] + ' (misma variedad)' if anchors.get('referencia_de', {}).get(species) else 'media de las variedades con roya')} "
             "(cada fecha pesa igual)."
         )
         if species in anchors["sana"].index:
@@ -938,9 +943,11 @@ def _tab_det():
 
     # ---------- 6. distancia a R1 ----------
     section("Distancia espectral a la hoja con roya")
-    if species not in species_with_rust:
+    if species not in species_with_rust and species not in RUST_ANCHOR_FROM:
         st.info(f"{species} no tiene hoja con roya: no hay contra qué medir la distancia.")
     else:
+        if species in RUST_ANCHOR_FROM:
+            st.caption(f"{species} no tiene hoja con roya: se compara con R1 de {RUST_ANCHOR_FROM[species]}, la misma variedad.")
         st.caption(
             "Distancia RMS en z-scores (7 índices, sin FSR) entre cada hoja M/T y R1 **el mismo día**. "
             f"El z-score usa media y SD de las hojas T en las {TEMPORAL_BASELINE_CAMPAIGNS} primeras "

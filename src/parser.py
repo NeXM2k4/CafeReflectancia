@@ -21,11 +21,13 @@ from src.config import (
     DATA_DIR,
     EXCLUDED_SPECIES,
     LEAF_MATURITY_CANONICAL,
+    PACAMARA_NS,
+    PACAMARA_NS_LEAF_SUFFIX,
     ROYA_LABEL,
     SANA_LABEL,
     SPECIES_CANONICAL,
-    SPECIES_PENDING_LABEL,
     SUSCEPTIBILITY_CANONICAL,
+    VIEJA_SPECIES,
 )
 
 # Patron generico {prefijo}_dd_mm_yyyy para el nombre de carpeta de una campaña
@@ -158,8 +160,11 @@ def _parse_filename(stem: str, species_folder: str, species: str) -> dict:
     }
 
 
-def leaf_label(session, session_num) -> str:
-    """Etiqueta de hoja para mostrar ("M1", "T2", "R1").
+def leaf_label(session, session_num, species=None) -> str:
+    """Etiqueta de hoja para mostrar ("M1", "T2", "R1"; "M1-NS" en Pacamara no susceptible).
+
+    Las hojas de la planta resistente de Pacamara se llaman igual que las de la susceptible en los
+    archivos; el sufijo `PACAMARA_NS_LEAF_SUFFIX` las distingue en filtros, tablas y graficas.
 
     `session_num` se guarda como entero, pero al armar el DataFrame la columna queda float
     (los archivos de nombre no reconocido aportan NaN), asi que sin normalizar aqui la hoja
@@ -167,9 +172,10 @@ def leaf_label(session, session_num) -> str:
     """
     if pd.isna(session):
         return "?"
+    sufijo = PACAMARA_NS_LEAF_SUFFIX if species == PACAMARA_NS else ""
     if pd.isna(session_num):
-        return str(session)
-    return f"{session}{int(session_num)}"
+        return f"{session}{sufijo}"
+    return f"{session}{int(session_num)}{sufijo}"
 
 
 def sorted_campaigns(df: pd.DataFrame) -> list:
@@ -293,9 +299,9 @@ def _discover_records(data_dir: Path) -> list[FileRecord]:
                         break
 
         if species is None and any(_normalize_key(part) == "vieja" for part in rel_parts[:-1]):
-            # Carpeta "vieja" (hoja vieja) sin especie identificable en el nombre del archivo
-            # (ver SPECIES_PENDING_LABEL en config.py): se agrupan aparte en vez de perderse.
-            species = SPECIES_PENDING_LABEL
+            # Carpeta "vieja" (hoja vieja) sin especie en el nombre del archivo: es la hoja vieja de
+            # Canefora (confirmado por el usuario 2026-11-24; ver VIEJA_SPECIES en config.py).
+            species = VIEJA_SPECIES
             species_folder_raw = "vieja"
 
         if species is None:
@@ -305,6 +311,10 @@ def _discover_records(data_dir: Path) -> list[FileRecord]:
         # Si no vino de una subcarpeta, usar el sufijo NS/S detectado en el nombre (Pacamara)
         susceptibility_suffix = meta.pop("susceptibility_suffix")
         susceptibility = susceptibility or susceptibility_suffix
+        # Planta resistente de Pacamara (carpeta "No susceptible"): grupo propio, ver PACAMARA_NS en
+        # config.py. La roya es solo de la planta susceptible, asi que una hoja R nunca se reasigna.
+        if species == "Pacamara" and susceptibility == "No susceptible" and meta.get("session") != "R":
+            species = PACAMARA_NS
 
         has_roya = meta["has_roya"]
         if has_roya is None:
@@ -372,8 +382,7 @@ def scan_dataset(fingerprint: str) -> pd.DataFrame:
 
 
 def raw_dataset(data_dir: Path = DATA_DIR) -> pd.DataFrame:
-    """Dataset crudo, sin los filtros de `get_dataset()` (Pacamara No susceptible,
-    `EXCLUDED_SPECIES`). Uso principal: la seccion "Calidad de datos" de Inicio, para poder
+    """Dataset crudo, sin los filtros de `get_dataset()` (`EXCLUDED_SPECIES`). Uso principal: la seccion "Calidad de datos" de Inicio, para poder
     contar cuantos archivos se excluyen y por que sin duplicar la logica de filtrado."""
     return scan_dataset(data_fingerprint(data_dir))
 
@@ -381,12 +390,12 @@ def raw_dataset(data_dir: Path = DATA_DIR) -> pd.DataFrame:
 def get_dataset(data_dir: Path = DATA_DIR) -> pd.DataFrame:
     """Punto de entrada: escanea data/ (con cache automatico segun su contenido).
 
-    Aplica los dos filtros del proyecto antes de entregar el DataFrame:
+    Aplica el filtro del proyecto antes de entregar el DataFrame:
 
-    - **Pacamara No susceptible**: esas hojas no participan del analisis (el foco son las
-      plantas susceptibles a roya). Las Susceptible o sin susceptibilidad clasificada se
-      conservan.
     - **EXCLUDED_SPECIES**: especies sin permiso de uso de datos (ver `config.py`).
+
+    Hasta 2026-11-24 tambien excluia Pacamara «No susceptible»; ahora esa planta (resistente) es
+    el grupo propio `PACAMARA_NS` (ver `_discover_records`).
 
     Es el unico punto donde se filtra, asi que las 4 paginas del dashboard y
     `make_ieee_figures.py` lo heredan sin tener que repetir la condicion. Si se necesita el
@@ -395,8 +404,7 @@ def get_dataset(data_dir: Path = DATA_DIR) -> pd.DataFrame:
     df = scan_dataset(data_fingerprint(data_dir))
     if df.empty:
         return df
-    mask_excluir = (df["species"] == "Pacamara") & (df["susceptibility"] == "No susceptible")
-    mask_excluir |= df["species"].isin(EXCLUDED_SPECIES)
+    mask_excluir = df["species"].isin(EXCLUDED_SPECIES)
     return df[~mask_excluir].reset_index(drop=True)
 
 

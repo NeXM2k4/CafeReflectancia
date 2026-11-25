@@ -117,10 +117,11 @@ def real():
     return ts, spectra
 
 
-def test_tablas_con_las_18_hojas_y_leaf_trends(real):
+def test_tablas_con_las_23_hojas_y_leaf_trends(real):
+    # 18 hojas + las 4 de Pacamara no susceptible (planta resistente) + Canefora V1 (hoja vieja), 2026-11-24
     ts, spectra = real
     n_hojas = ts["leaf_id"].nunique()
-    assert n_hojas == 18
+    assert n_hojas == 23
     feats = sp.features_table(spectra, ts)
     rd = sp.region_delta_table(spectra, ts, "area", 2)
     needed = {"species", "leaf_id", "leaf", "leaf_type", "campaign_date", "dia"}

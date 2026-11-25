@@ -3,14 +3,14 @@
 import pandas as pd
 import streamlit as st
 
-from src.config import LEAF_TYPE_HELP, LEAF_TYPE_LABELS, SPECIES_COLORS, SPECIES_PENDING_LABEL
+from src.config import LEAF_TYPE_HELP, LEAF_TYPE_LABELS, PACAMARA_NS, SPECIES_COLORS, SPECIES_ORDER, SPECIES_PENDING_LABEL
 from src.indices import DISPLAY_INDICES, file_index_table, leaf_date_table, quality_flags
 from src.parser import get_dataset
 from src.ui import (campaign_range, html_table, index_column_config, index_sheet_table, leaf_sort, note,
                     page_header, section, sidebar_footer)
 from src.viz_groups import distributions, effect_matrix, global_test, pair_table, technical_detail
 
-ORDEN = ["Bourbon", "Pacamara", "Canefora", "Cuscatleco"]
+ORDEN = SPECIES_ORDER
 SUSCEPTIBLES = {"Bourbon", "Pacamara"}
 
 page_header(
@@ -58,7 +58,7 @@ if len(presentes) < 2:
 conteo = ld.groupby("species").agg(hojas=("leaf", "nunique"), n=("leaf", "size")).reindex(presentes)
 html_table(pd.DataFrame({
     "Variedad": presentes,
-    "Rol": ["susceptible" if s in SUSCEPTIBLES else "control sin roya" for s in presentes],
+    "Rol": ["susceptible" if s in SUSCEPTIBLES else ("control resistente (misma variedad que Pacamara)" if s == PACAMARA_NS else "control sin roya") for s in presentes],
     "Hojas": conteo["hojas"].tolist(), "Hojas-fecha": conteo["n"].tolist(),
 }), num_cols=("Hojas", "Hojas-fecha"), strong_cols=("Variedad",))
 

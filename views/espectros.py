@@ -5,7 +5,7 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
-from src.config import INDEX_WAVELENGTHS, LEAF_NUM_DASH, LEAF_TYPE_COLORS, LEAF_TYPE_LABELS, SG_POLYORDER, SG_WINDOW, SPECIES_PENDING_LABEL, X_MAX
+from src.config import INDEX_WAVELENGTHS, LEAF_NUM_DASH, LEAF_TYPE_COLORS, LEAF_TYPE_LABELS, SG_POLYORDER, SG_WINDOW, SPECIES_ORDER, SPECIES_PENDING_LABEL, X_MAX
 from src.parser import data_fingerprint, get_dataset, leaf_label, load_spectrum
 from src.processing import prepare_spectrum
 from src.store import GRID as STORE_GRID, processed_store, spectra_matrix
@@ -55,7 +55,7 @@ if df.empty:
 recognized = df[df["name_recognized"] & (df["species"] != SPECIES_PENDING_LABEL)]
 
 with st.sidebar:
-    especies = [s for s in ["Bourbon", "Pacamara", "Canefora", "Cuscatleco"] if s in set(recognized["species"])]
+    especies = [s for s in SPECIES_ORDER if s in set(recognized["species"])]
     species = st.selectbox("Variedad", especies, key="esp_sp")
     sub = recognized[recognized["species"] == species]
     sel_c = campaign_range(sub, key="esp_camp")
@@ -95,7 +95,7 @@ if vista in ("Curvas", "Ambas"):
     grupos = sorted(sub.groupby(["session", "session_num"], sort=False), key=lambda kv: (LEAF_ORDER.index(kv[0][0]), kv[0][1]))
     for (tipo, num), g in grupos:
         color = LEAF_TYPE_COLORS[tipo]
-        hoja = leaf_label(tipo, num)
+        hoja = leaf_label(tipo, num, species)
         idx = g.index.to_numpy()
         # Todas las curvas de una hoja en una sola traza (separadas por NaN): mucho mas liviano.
         xs = np.tile(np.append(GRID, np.nan), len(idx))

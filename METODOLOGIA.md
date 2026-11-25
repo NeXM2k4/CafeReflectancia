@@ -11,12 +11,26 @@ auditarla. El paper debe salir de aquí.
 
 - **Especies:** Bourbon, Pacamara, Canefora, Cuscatleco. Solo **Bourbon y Pacamara** son
   susceptibles y tienen una hoja con roya confirmada (R1). Canefora y Cuscatleco son **controles
-  sin roya**. Las hojas Pacamara "No susceptible" se ocultan del análisis (se cuentan en «Datos y calidad»).
+  sin roya**.
+- **Pacamara tiene dos plantas** (desde 2026-11-24 ambas en el análisis): la **susceptible** (con R1) y
+  una **resistente**, que en `data/` viene en la carpeta «No susceptible». La resistente es un grupo
+  propio, **«Pacamara no susceptible»**, con hojas **M1-NS, M2-NS, T1-NS, T2-NS** (sufijo para que nunca
+  se mezclen con las de la susceptible). Es un control sin roya, el más directo de Pacamara (misma
+  variedad). Toda hoja con roya es de la planta susceptible, también cuando la carpeta `Roya` está al
+  lado de `Susceptible` y `No susceptible`. Antes de esa fecha la resistente se excluía; al sumarla
+  cambian un poco los p corregidos (Holm, FDR) de comparaciones y tendencias que abarcan todas las hojas.
+  Plan: `docs/plan_pacamara_no_susceptible.md`.
 - **Tipo de hoja** (prefijo del nombre de archivo): **T** tierna, **M** madura, **R** con roya,
   **V** vieja. *Tierna y madura significan "sin roya visible", **no** "sana"*: el estado real de la
   hoja madura es justamente lo desconocido. La tierna es la referencia sana porque la roya no ha
   tenido tiempo de manifestarse en tejido nuevo.
-- **Hojas longitudinales:** M1, M2, T1, T2 y R1 son **las mismas hojas físicas en todas las
+- **Hoja vieja de Canefora (V1)** (desde 2026-11-24 en el análisis): una sola hoja, medida en 9 campañas
+  (17/08 a 12/10; las carpetas `vieja` posteriores están vacías). Solo el 17/08 y el 05/10 nombran la
+  especie; las carpetas `vieja` sueltas (`p1vieja1.txt`…) se asignan a Canefora por confirmación del
+  equipo (`config.VIEJA_SPECIES`). Entra en todas las vistas por hoja (series, tendencias, análisis
+  espectral) y en las comparaciones por tipo; **no** define anclas (esas usan solo T y R) ni entra en los
+  grupos de «¿roya o edad?» (T / M / R1). Al sumarla cambian un poco los p FDR que abarcan todas las hojas.
+- **Hojas longitudinales:** M1, M2, T1, T2, R1 (y V1 de Canefora) son **las mismas hojas físicas en todas las
   campañas**. La unidad de análisis es la **hoja-fecha**.
 - **Puntos:** dentro de cada hoja se mide en varios puntos, pero **no son ubicaciones fijas** entre
   campañas y solo **p1–p3** se consideran válidos (p4–p6 aparecen en algunas campañas y se
@@ -84,7 +98,9 @@ espectro) y mNDVI705 > 1 en Pacamara el 24/08 y 31/08.
    hoja-fecha** (cada fecha pesa igual) y sin hojas-fecha marcadas por control de calidad.
 2. **Ancla con roya (1):** ídem con las hojas R. Una especie sin roya propia (Canefora,
    Cuscatleco) usa la media combinada de las que sí tienen y queda marcada como
-   *referencia estimada*.
+   *referencia estimada*. **Pacamara no susceptible** usa la R1 de Pacamara, la misma variedad
+   (`config.RUST_ANCHOR_FROM`); con la misma regla se calculan su distancia a R1 (§7.4) y su
+   ángulo espectral contra R1 (§10).
 3. **Normalización por índice:** (valor − sana) / (roya − sana), recortado a [0, 1]. Un índice sin
    diferencia entre anclas o sin dato se omite.
 4. **Combinación:** **mediana** de los índices normalizados (robusta a un índice atípico). Se guarda
@@ -176,6 +192,10 @@ resumida por grupo con la mediana entre hojas. Opcionalmente se normaliza por la
 (750–900 nm) para descartar cambios de nivel entre días.
 
 ## 8. Alerta de Telegram (`src/notifier.py`, `src/state.py`)
+
+**Oculta desde 2026-11-24** a pedido del usuario: los 711 archivos de Pacamara no susceptible nunca
+estuvieron en el registro de vistos y saldrían todos como novedad. El código sigue; para volver a
+mostrarla, descomentar su línea en `app.py` y antes marcar esos archivos como vistos.
 
 - Botón manual (no hay servidor en segundo plano). "Verificar" calcula las novedades y muestra una
   **vista previa**; "Enviar a Telegram" hace el envío real. Un envío fallido **no** actualiza el

@@ -61,8 +61,9 @@ with tab_s:
     else:
         render_styled_pivot(susc.pivot_table(index="species", columns="susceptibility", values="filename",
                                              aggfunc="count", fill_value=0))
-        st.caption("Propiedad de la planta (variedad), registrada solo en Pacamara. Incluye los espectros "
-                   "«No susceptible», que se excluyen del análisis.")
+        st.caption("Registrada solo en Pacamara, que tiene dos plantas. La «No susceptible» es la planta "
+                   "resistente: desde el 24/11/2026 entra al análisis como grupo propio, «Pacamara no "
+                   "susceptible», con sus hojas renombradas M1-NS, M2-NS, T1-NS y T2-NS.")
 with tab_id:
     camp = df[["campaign_id", "campaign_date"]].drop_duplicates().set_index("campaign_id").loc[sorted_campaigns(df)].reset_index()
     camp["Fecha"] = camp["campaign_id"].map(etiquetas)
@@ -72,7 +73,6 @@ with tab_id:
 
 # --------------------------------------------------------------------------------------------
 section("Exclusiones y marcas", "Se aplican antes de calcular índices, estadística y similitud.")
-n_no_susc = int(((raw["species"] == "Pacamara") & (raw["susceptibility"] == "No susceptible")).sum())
 n_pend = int((df["species"] == SPECIES_PENDING_LABEL).sum())
 n_p4 = int((~files_all["point"].isin([1, 2, 3])).sum())
 n_atip = int(ld_all["qc_atipico"].sum())
@@ -81,10 +81,9 @@ n_impl = int(ld_all["qc_implausible"].sum())
 # blanca guardada con nombre de hoja). Solo se marca: la decision de excluirlo es del equipo.
 sin_hoja = files_all[files_all["NDVI"] < NDVI_SIN_HOJA]
 filas = [
-    ("Excluido", "Pacamara «No susceptible»", n_no_susc, "espectros",
-     "Variedad fuera del foco del estudio. No aparece en ninguna vista."),
     ("Excluido", "Hoja vieja sin variedad", n_pend, "espectros",
-     "No se registró a qué variedad pertenecen. Se cuentan aparte y nunca se mezclan con las cuatro variedades."),
+     "Desde el 24/11/2026 las carpetas «vieja» se asignan a Canefora (hoja V1, confirmado por el equipo); "
+     "debería quedar en 0."),
     ("Excluido", "Nombre de archivo no reconocido", len(unrecognized), "espectros",
      "No siguen el patrón {M|T|R|V}{n}p{punto}{variedad}{repetición}. Listados abajo."),
     ("Excluido", "Puntos p4–p6", n_p4, "espectros",

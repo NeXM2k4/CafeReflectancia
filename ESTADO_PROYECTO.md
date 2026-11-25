@@ -48,9 +48,21 @@ línea base es de 2 fechas por defecto (el ejemplo usa 1; hay selector); los esp
 (NDVI < 0,05) se excluyen por defecto en estas 4 vistas, por eso desaparece la franja del 24/08 de Bourbon M1.
 
 ### Siguiente sesión
+0. **Hecho el 2026-11-24 (reporte del equipo): Pacamara «No susceptible» ya aparece.** Es la planta
+   resistente; ahora es el grupo propio «Pacamara no susceptible» con hojas M1-NS, M2-NS, T1-NS y T2-NS
+   (711 espectros, 20 campañas). La roya es solo de la susceptible. Ancla con roya, distancia a R1 y
+   SAM R1: la R1 de Pacamara (misma variedad). *Alerta de campo* (Telegram) quedó **oculta** a pedido
+   del usuario. 50 pruebas pasan (`tests/test_pacamara_ns.py`). Revisar en el navegador con el equipo.
+   Para reactivar Telegram: marcar antes los 711 archivos como vistos (`METODOLOGIA.md` §8).
+0b. **Hecho el 2026-11-24: hojas viejas de Canefora en el análisis.** Las carpetas `vieja` sueltas son de
+   Canefora (confirmado); hoja **V1**, 9 campañas (17/08 a 12/10; las carpetas `vieja` del 19/10, 09/11
+   y 16/11 están vacías: preguntar al equipo si dejaron de medirla). El análisis temporal acepta tipo V:
+   aparece en *Evolución temporal* (Detalle por hoja), en las 4 vistas espectrales (23 hojas) y en
+   *Índices* / *Variedades* con más fechas. No toca anclas ni los grupos de «¿roya o edad?».
+   52 pruebas pasan (`tests/test_canefora_vieja.py`). Sin commitear.
 1. Recoger la opinión del usuario sobre las 4 vistas (las vio en el navegador; aún no dio comentarios).
-2. **Nada está commiteado.** El árbol tiene dos trabajos juntos: rendimiento P1/P2 (2026-11-19) y este
-   análisis espectral. Preguntar si van en uno o dos commits (sin `Co-Authored-By`).
+2. Rendimiento P1/P2 y análisis espectral ya commiteados por el usuario (`a50a129`). Lo de Pacamara
+   no susceptible y la alerta oculta (2026-11-24, segunda parte) está sin commitear.
 3. Decidir el informe Excel + figuras / Drive (plan §9; recomendación: script `scripts/export_report.py`
    y después una GitHub Action que sincronice a Drive).
 4. Sigue pendiente lo anterior: medir el rendimiento en Streamlit Cloud y reescribir `plan_subida_datos.md`.
@@ -108,7 +120,7 @@ notas hablan de «12 semanas»; hay que generar esos textos a partir de los dato
 - **Datos nuevos (oct–nov):** 18 archivos `Validacion1p*bourbon*.txt` (26/10 y 05/11) no se reconocen
   y no entran al análisis; falta saber qué hoja es. Los `p*roya*` de Pacamara del 19/10 están en una
   carpeta `suceptible/vieja/` y hoy se leen como R1.
-- **Datos:** 45 archivos de "hoja vieja" sin especie confirmada; 3 archivos `araña*.txt` sin
+- **Datos:** ~~hojas viejas sin especie~~ resuelto el 2026-11-24 (son Canefora V1); 3 archivos `araña*.txt` sin
   significado; solo 1 hoja con roya por especie; no hay etiqueta de hoja asintomática infectada.
 - **Espectros sin firma de hoja:** 4 espectros con NDVI ≈ 0 (reflectancia plana, probable referencia
   blanca): Bourbon M1 p3 del 24/08 (las 3 repeticiones) y Cuscatleco M1 p3 del 17/08 (1 repetición).

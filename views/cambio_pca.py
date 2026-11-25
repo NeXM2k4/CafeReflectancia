@@ -202,5 +202,5 @@ with tab_p:
                     traj = traj[(traj["species"] == sel.species) | (traj["leaf_id"] == sel.leaf_id)]
                 chart(common_space_trajectories(traj, sel.leaf_id, expl, labels_sel=labels), key="cp_common")
                 st.caption("Colores por tipo: " + ", ".join(
-                    f"{k} = {c}" for k, c in LEAF_TYPE_COLORS.items() if k in {"M", "T", "R"}) +
+                    f"{k} = {c}" for k, c in LEAF_TYPE_COLORS.items() if k in {"M", "T", "R", "V"}) +
                     ". Las flechas marcan el último desplazamiento de cada hoja.")

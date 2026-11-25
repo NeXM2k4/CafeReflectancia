@@ -18,6 +18,7 @@ from statsmodels.stats.multitest import multipletests
 
 from src.config import (
     DELTA_REGIONS,
+    RUST_ANCHOR_FROM,
     SPECTRAL_DERIV_POLY,
     SPECTRAL_DERIV_WINDOW,
     SPECTRAL_WL,
@@ -57,7 +58,8 @@ FEATURE_DEFINITIONS = {
     F_AREA: ("nm", "∫ (1 − R/Rc) dλ entre 540 y 760 nm (mismo continuo lineal).", "Lo mismo, integrado."),
     F_SAM_BASE: ("°", "Ángulo espectral (440–900 nm) contra la línea base de la hoja (primeras fechas).",
                  "Cambio de forma total, invariante a la escala."),
-    F_SAM_R1: ("°", "Ángulo espectral contra R1 de su variedad el mismo día (solo M y T de variedades con R).",
+    F_SAM_R1: ("°", "Ángulo espectral contra R1 de su variedad el mismo día (solo M y T de variedades con R; "
+                    "Pacamara no susceptible usa R1 de Pacamara).",
                "Parecido de forma con la hoja con roya."),
 }
 
@@ -342,7 +344,8 @@ def features_table(spectra: pd.DataFrame, meta: pd.DataFrame, n_base: int = TEMP
     """Rasgos de todas las hojas-fecha: claves de hoja + campaign_date + dia + FEATURE_COLUMNS.
 
     SAM base: contra la media de las primeras `n_base` fechas de la hoja. SAM R1: contra R1 de la misma
-    variedad el mismo dia, solo para hojas M y T de variedades que tienen una hoja R; NaN en el resto.
+    variedad el mismo dia, solo para hojas M y T de variedades que tienen una hoja R (o que la toman de su
+    misma variedad por `RUST_ANCHOR_FROM`); NaN en el resto.
     """
     mats = _matrices(spectra, meta)
     info = _leaf_meta(meta).set_index("leaf_id")
@@ -356,8 +359,8 @@ def features_table(spectra: pd.DataFrame, meta: pd.DataFrame, n_base: int = TEMP
         f[F_SAM_BASE] = sam_deg(lm.R, base[None, :])
         f[F_SAM_R1] = np.nan
         row = info.loc[lid]
-        rid = r_of_species.get(row["species"])
-        if row["leaf_type"] in ("M", "T") and rid is not None and mats[rid].n_dates:
+        rid = r_of_species.get(row["species"]) or r_of_species.get(RUST_ANCHOR_FROM.get(row["species"]))
+        if row["leaf_type"] in ("M", "T", "V") and rid is not None and mats[rid].n_dates:
             rm = mats[rid]
             pos = pd.Series(np.arange(rm.n_dates), index=rm.dates)
             j = pos.reindex(lm.dates).to_numpy()

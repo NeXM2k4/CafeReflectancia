@@ -39,7 +39,10 @@ nav = st.navigation(
         ],
         "Datos y operación": [
             st.Page(V / "datos_calidad.py", title="Datos y calidad", icon=":material/fact_check:"),
-            st.Page(V / "alerta.py", title="Alerta de campo", icon=":material/notifications:"),
+            # Alerta de campo (Telegram) oculta desde 2026-11-24 a pedido del usuario: al sumar la planta
+            # resistente de Pacamara, sus 711 archivos saldrian todos como «novedad». El codigo sigue en
+            # views/alerta.py; para volver a mostrarla, descomentar la linea de abajo.
+            # st.Page(V / "alerta.py", title="Alerta de campo", icon=":material/notifications:"),
         ],
     }
 )

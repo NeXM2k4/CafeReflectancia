@@ -34,7 +34,7 @@ GLOSARIO = [
     ("Holm / FDR", "Correcciones por pruebas múltiples: Holm controla la probabilidad de algún falso positivo; Benjamini–Hochberg (FDR) la proporción esperada de falsos positivos."),
     ("Theil–Sen / Mann–Kendall", "Pendiente robusta (mediana de las pendientes entre pares de fechas) y prueba de tendencia monótona."),
     ("Control de calidad", "Marca una hoja-fecha como atípica (≥ 4 de 7 índices con |z robusto| > 3.5 respecto de su propia serie) o implausible (mNDVI705 fuera de [−0.05; 1.05]). Nunca borra datos."),
-    ("Control sin roya", "Canefora y Cuscatleco: variedades sin hoja con roya, que sirven para reconocer cambios por edad o por estación."),
+    ("Control sin roya", "Pacamara no susceptible (planta resistente de Pacamara), Canefora y Cuscatleco: grupos sin hoja con roya, que sirven para reconocer cambios por edad o por estación. Pacamara no susceptible es el control más directo de Pacamara (misma variedad)."),
 ]
 
 tab_met, tab_glo, tab_idx = st.tabs(["Método", "Glosario", "Índices"])

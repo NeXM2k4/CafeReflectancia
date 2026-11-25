@@ -5,6 +5,7 @@ modulo; las que dependen del estado de la pagina (eje X elegido, especies suscep
 viven en `TimePlots`, que se construye una vez con ese estado.
 """
 
+import re
 import warnings
 
 import numpy as np
@@ -21,6 +22,7 @@ from src.config import (
     RUST_RISK_CLASSES,
     TEMPORAL_MIN_FECHAS_TENDENCIA,
 )
+from src.config import SPECIES_ORDER as CONFIG_SPECIES_ORDER
 from src.stats_utils import stars
 from src.ui import defer_layout_items, subplot_refs
 
@@ -34,8 +36,8 @@ LOWESS_PUNTOS = 60
 TEXT_MUTED = "#6B6A64"
 GRID = "#ECEBE7"
 BG = "#FFFFFF"
-SPECIES_ORDER = ["Bourbon", "Pacamara", "Canefora", "Cuscatleco"]
-TYPE_ORDER = {"M": 0, "T": 1, "R": 2}
+SPECIES_ORDER = CONFIG_SPECIES_ORDER  # fuente unica en config.py (incluye Pacamara no susceptible)
+TYPE_ORDER = {"M": 0, "T": 1, "R": 2, "V": 3}
 
 
 def rgba(hex_color: str, alpha: float) -> str:
@@ -80,12 +82,18 @@ def leaf_sort_key(leaf: str):
     return TYPE_ORDER.get(leaf[0], 9), leaf
 
 
+def _leaf_num(leaf: str) -> int | None:
+    """Numero de hoja de una etiqueta ("M1" -> 1; "T2-NS" -> 2, sufijo de Pacamara no susceptible)."""
+    m = re.match(r"^[A-Za-z](\d+)", leaf)
+    return int(m.group(1)) if m else None
+
+
 def leaf_style(leaf: str) -> tuple[str, str]:
-    return LEAF_TYPE_COLORS[leaf[0]], LEAF_NUM_DASH.get(int(leaf[1:]), "dot")
+    return LEAF_TYPE_COLORS[leaf[0]], LEAF_NUM_DASH.get(_leaf_num(leaf), "dot")
 
 
 def leaf_symbol(leaf: str) -> str:
-    return LEAF_NUM_SYMBOL.get(int(leaf[1:]), "diamond")
+    return LEAF_NUM_SYMBOL.get(_leaf_num(leaf), "diamond")
 
 
 def leaf_name(leaf: str) -> str:
