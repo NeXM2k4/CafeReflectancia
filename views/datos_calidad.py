@@ -3,7 +3,7 @@
 import pandas as pd
 import streamlit as st
 
-from src.config import LEAF_TYPE_HELP, LEAF_TYPE_LABELS, SPECIES_PENDING_LABEL
+from src.config import LEAF_TYPE_HELP, LEAF_TYPE_LABELS, NDVI_SIN_HOJA, SPECIES_PENDING_LABEL
 from src.indices import file_index_table, leaf_date_table, quality_flags
 from src.parser import campaign_options, get_dataset, raw_dataset, sorted_campaigns
 from src.ui import html_table, note, page_header, render_styled_pivot, section, sidebar_footer
@@ -79,7 +79,6 @@ n_atip = int(ld_all["qc_atipico"].sum())
 n_impl = int(ld_all["qc_implausible"].sum())
 # Espectro sin firma de hoja: NDVI casi nulo con reflectancia visible alta (p. ej. una referencia
 # blanca guardada con nombre de hoja). Solo se marca: la decision de excluirlo es del equipo.
-NDVI_SIN_HOJA = 0.05
 sin_hoja = files_all[files_all["NDVI"] < NDVI_SIN_HOJA]
 filas = [
     ("Excluido", "Pacamara «No susceptible»", n_no_susc, "espectros",

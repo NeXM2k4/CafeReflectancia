@@ -32,6 +32,12 @@ chartCategoricalColors = ["#3987E5", "#D95926", "#199E70", "#B97A00", "#D55181",
 backgroundColor = "#F7F7F5"
 secondaryBackgroundColor = "#EDEDE9"
 
+[global]
+# Las pestañas perezosas de *Evolución temporal* conservan el estado de sus controles
+# reasignándolo (`ui.keep_widget_state`); Streamlit lo anota en el log con una traza aunque es el
+# patrón que documenta. Ver docs/plan_rendimiento.md.
+disableWidgetStateDuplicationWarning = true
+
 [client]
 toolbarMode = "minimal"
 showErrorDetails = "full"

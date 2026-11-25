@@ -90,6 +90,46 @@ def test_archivo_ilegible_queda_con_error(mini):
     assert tabla.loc[str(malo), store.INDICES].isna().all()
 
 
+def test_verificacion_rapida_da_la_misma_tabla_sin_leer_archivos(mini, monkeypatch):
+    """Modo de la app (`verify_content=False`): misma tabla que verificando por contenido, sin leer."""
+    data, cache = mini
+    completa, _ = store.build_store(data, cache)
+    leidos = []
+    original = Path.read_bytes
+    monkeypatch.setattr(Path, "read_bytes", lambda self: leidos.append(self) or original(self))
+    rapida, r = store.build_store(data, cache, verify_content=False)
+    assert leidos == [] and r["calculados"] == 0
+    pd.testing.assert_frame_equal(rapida, completa)
+
+
+def test_verificacion_rapida_detecta_archivos_nuevos_y_cambios_de_tamano(mini):
+    data, cache = mini
+    store.build_store(data, cache)
+    archivos = sorted(data.rglob("*.txt"))
+    nuevo = archivos[0].parent / "T1p1bourbon99.txt"
+    shutil.copy(MUESTRA[0], nuevo)
+    with open(archivos[1], "ab") as f:  # mismo archivo, otro tamaño
+        f.write(b"\n")
+    tabla, r = store.build_store(data, cache, verify_content=False)
+    assert r["calculados"] == 2
+    _igual(tabla, nuevo)
+    _igual(tabla, archivos[1])
+
+
+def test_verificacion_rapida_no_ve_un_reemplazo_del_mismo_tamano(mini):
+    """Riesgo aceptado y documentado (docs/plan_rendimiento.md, P2): lo detecta solo la
+    verificacion por contenido (`build_cache.py` y `test_almacen_versionado_esta_al_dia`)."""
+    data, cache = mini
+    store.build_store(data, cache)
+    a = sorted(data.rglob("*.txt"))[0]
+    contenido = bytearray(a.read_bytes())
+    i = contenido.rindex(b"5")  # un digito del cuerpo de datos: mismo tamaño, otro valor
+    contenido[i:i + 1] = b"6"
+    a.write_bytes(bytes(contenido))
+    assert store.build_store(data, cache, verify_content=False)[1]["calculados"] == 0
+    assert store.build_store(data, cache)[1]["calculados"] == 1
+
+
 def test_almacen_versionado_esta_al_dia():
     """`data_cache/` del repo debe cubrir todo data/ con el metodo actual (si falla: correr
     `python scripts/build_cache.py` y commitear data_cache/)."""

@@ -258,12 +258,28 @@ def _lag1(res: np.ndarray) -> float:
     return float(np.corrcoef(res[:-1], res[1:])[0, 1])
 
 
+_TREND_KEYS = ["species", "leaf_id", "leaf", "leaf_type", "campaign_date", "dia"]
+
+
 def leaf_trends(ts: pd.DataFrame, columnas: list[str], familia: str) -> pd.DataFrame:
     """Pendiente de Theil-Sen (por semana) + Mann-Kendall por hoja y variable, con FDR de BH.
 
     La correccion se aplica sobre toda la familia recibida (todas las especies y hojas), no
     sobre lo filtrado en pantalla, para que el p corregido no cambie al mover un filtro.
+
+    Se guarda en cache (~0,1 s por familia; *Evolucion temporal* pide 7 familias en cada recarga).
+    Solo se pasan al cache las columnas que se usan, para que la clave sea chica y no cambie por
+    columnas ajenas. El resultado es el mismo que sin cache (`tests/test_rendimiento.py`).
     """
+    return _leaf_trends_cached(ts[_TREND_KEYS + list(columnas)], list(columnas), familia)
+
+
+@st.cache_data(show_spinner=False, max_entries=64)
+def _leaf_trends_cached(ts: pd.DataFrame, columnas: list[str], familia: str) -> pd.DataFrame:
+    return _leaf_trends_compute(ts, columnas, familia)
+
+
+def _leaf_trends_compute(ts: pd.DataFrame, columnas: list[str], familia: str) -> pd.DataFrame:
     filas = []
     for (species, lid, leaf, leaf_type), g in ts.groupby(["species", "leaf_id", "leaf", "leaf_type"]):
         g = g.sort_values("campaign_date")

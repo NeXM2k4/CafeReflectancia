@@ -41,7 +41,17 @@ from src.temporal import (
     temporal_selection,
     with_gaps,
 )
-from src.ui import add_hlines_all, add_vlines, chart, index_column_config, note, page_header, section, sidebar_footer
+from src.ui import (
+    add_hlines_all,
+    add_vlines,
+    chart,
+    index_column_config,
+    keep_widget_state,
+    note,
+    page_header,
+    section,
+    sidebar_footer,
+)
 
 from src.temporal_plots import (
     GRID,
@@ -56,6 +66,14 @@ from src.temporal_plots import (
     region_slopes,
     region_table,
     rgba as _rgba,
+)
+
+# Controles dentro de pestañas: se conservan aunque su pestaña no se dibuje en esta recarga.
+keep_widget_state(
+    keys=("tabs_evol", "tabs_mad", "tabs_edad", "tabs_det", "index_sel", "modo_sel", "ver_pts", "ver_peor", "fam_m",
+          "norm_s2", "hojas_s2", "fam_idx", "t_leaf_s3", "norm_s3", "fam_detalle", "solo_esp", "ancla_sel",
+          "sin_recorte", "show_band", "frame_ms"),
+    prefixes=("anim_leaves_",),
 )
 
 page_header(
@@ -219,11 +237,35 @@ m_panels = tp.m_panels
 m_trend_table = tp.m_trend_table
 
 
+# Pestañas perezosas: solo se dibuja la abierta (`on_change="rerun"` + `tab.open`). Antes se
+# dibujaban las 5 pestañas y sus subpestañas en cada clic (docs/plan_rendimiento.md).
 tab_res, tab_mad, tab_edad, tab_det, tab_dat = st.tabs([
     "Resumen", "Hojas maduras", "¿Roya o edad?", "Detalle por hoja", "Datos y calidad",
-])
+], key="tabs_evol", on_change="rerun")
 
-with tab_res:
+# Índice y modo se eligen en «Hojas maduras» y también los usa «Detalle por hoja»: cuando la
+# primera pestaña no se dibuja, se leen del estado de sesión (que `keep_widget_state` conserva).
+MODOS = {
+    "Valor": ("", "Valor del índice, sin anclas ni modelos. Es la vista más defendible."),
+    "Cambio desde la primera fecha (Δ)": (
+        DELTA, "Cambio respecto de la primera medición de cada hoja: cada hoja es su propio control."
+    ),
+    "Cambio corregido por hojas T (Δ*)": (
+        DELTA_STAR,
+        "Δ menos la mediana de Δ de las hojas T de la misma variedad ese día. Resta la deriva común "
+        "(luz, calibración, estación) y también la maduración normal: es conservador a propósito.",
+    ),
+}
+INDEX_DEFAULT = "mNDVI705"
+
+
+def _seleccion_indice() -> tuple[str, str, str, str]:
+    index_sel = st.session_state.get("index_sel", INDEX_DEFAULT)
+    modo = st.session_state.get("modo_sel", next(iter(MODOS)))
+    prefijo, explicacion = MODOS[modo]
+    return index_sel, modo, prefijo, explicacion
+
+def _tab_res():
     # ---------- resumen de hallazgos (se recalculan solos con datos nuevos) ----------
     section("Hallazgos con los datos actuales",
             "Se recalculan automáticamente al agregar campañas. Todos usan Δ* (cambio corregido por las hojas "
@@ -271,26 +313,14 @@ with tab_res:
 """
     )
 
-with tab_mad:
+def _tab_mad():
     section(f"Hojas maduras de {' y '.join(SUSCEPTIBLES)}",
             "La hoja madura es la de estado desconocido: donde una infección todavía sin síntomas tendría que "
             "aparecer. M1 y M2 en primer plano; la banda es el rango de las hojas tiernas de la misma variedad y la "
             "línea punteada, R1. Esta pestaña muestra siempre las dos variedades susceptibles.")
 
-    MODOS = {
-        "Valor": ("", "Valor del índice, sin anclas ni modelos. Es la vista más defendible."),
-        "Cambio desde la primera fecha (Δ)": (
-            DELTA, "Cambio respecto de la primera medición de cada hoja: cada hoja es su propio control."
-        ),
-        "Cambio corregido por hojas T (Δ*)": (
-            DELTA_STAR,
-            "Δ menos la mediana de Δ de las hojas T de la misma variedad ese día. Resta la deriva común "
-            "(luz, calibración, estación) y también la maduración normal: es conservador a propósito.",
-        ),
-    }
-
     c1, c2 = st.columns([1, 2])
-    index_sel = c1.selectbox("Índice", DIST_INDICES, index=DIST_INDICES.index("mNDVI705"), key="index_sel")
+    index_sel = c1.selectbox("Índice", DIST_INDICES, index=DIST_INDICES.index(INDEX_DEFAULT), key="index_sel")
     modo = c2.radio("Modo", list(MODOS), horizontal=True, key="modo_sel")
     prefijo, explicacion = MODOS[modo]
     st.caption(explicacion)
@@ -313,62 +343,67 @@ with tab_mad:
             k += 1
 
     tab_idx, tab_sev, tab_dist, tab_all = st.tabs(
-        [f"{index_sel} en el tiempo", "Similitud relativa con roya", "Distancia a R1", "Los 7 índices"]
+        [f"{index_sel} en el tiempo", "Similitud relativa con roya", "Distancia a R1", "Los 7 índices"],
+        key="tabs_mad", on_change="rerun",
     )
     with tab_idx:
-        if prefijo:
-            st.caption("Los puntos individuales y el peor punto se muestran en el modo **Valor**.")
-            ver_pts = ver_peor = False
-        else:
-            cc1, cc2 = st.columns(2)
-            ver_pts = cc1.toggle("Puntos individuales (p1–p3)", value=True, key="ver_pts",
-                                 help="Cada punto es la media de sus repeticiones. Muestra cuánto varía la hoja por dentro.")
-            ver_peor = cc2.toggle("Peor punto (hacia la roya)", value=False, key="ver_peor",
-                                  help="El punto más desplazado hacia la hoja con roya ese día. Con 3 puntos es ruidoso: "
-                                       "sirve como señal complementaria, no como reemplazo del promedio.")
-        fig = m_panels(ts_gaps, prefijo + index_sel, f"{modo}: {index_sel}",
-                       sdcol=f"sd {index_sel}" if not (prefijo or ver_pts) else None, zero_line=bool(prefijo),
-                       pts_col=index_sel if ver_pts else None, worst_col=PEOR + index_sel if ver_peor else None,
-                       trend_q=_q_indice(prefijo, index_sel))
-        chart(fig)
-        st.caption(TREND_SHORT)
-    with tab_sev:
-        st.caption(
-            "Similitud relativa con roya con anclas S1: 0 % = hojas T en las primeras campañas, 100 % = promedio de "
-            "R1. Sirve para comparar hojas entre sí; ver la advertencia de circularidad en «Similitud relativa con roya en el tiempo» (pestaña Detalle por hoja)."
-        )
-        fig = m_panels(sev_gaps, "sev_S1", "Similitud relativa con roya (%)", scale=100, risk_lines=True,
-                       trend_q=_q(trends_sev["sev_S1"], "sev_S1"))
-        fig.update_yaxes(range=[-3, 105])
-        chart(fig)
-        st.caption(TREND_SHORT)
-    with tab_dist:
-        st.caption(
-            "Distancia RMS en z-scores (sin FSR) entre cada hoja y R1 **el mismo día**. Más baja = más "
-            "parecida a la hoja con roya. Una M que baja de forma sostenida y sale de la banda de las T es "
-            "la señal a revisar en campo. El pico del 10/08 en Pacamara es R1 atípica ese día, no las M."
-        )
-        if dist_gaps.empty:
-            st.info("No hay datos de distancia.")
-        else:
-            fig = m_panels(dist_gaps, "distancia", "Distancia a R1 (z RMS)", show_rust=False,
-                           trend_q=_q(trends_dist, "distancia"))
-            fig.update_yaxes(rangemode="tozero")
+        if tab_idx.open:
+            if prefijo:
+                st.caption("Los puntos individuales y el peor punto se muestran en el modo **Valor**.")
+                ver_pts = ver_peor = False
+            else:
+                cc1, cc2 = st.columns(2)
+                ver_pts = cc1.toggle("Puntos individuales (p1–p3)", value=True, key="ver_pts",
+                                     help="Cada punto es la media de sus repeticiones. Muestra cuánto varía la hoja por dentro.")
+                ver_peor = cc2.toggle("Peor punto (hacia la roya)", value=False, key="ver_peor",
+                                      help="El punto más desplazado hacia la hoja con roya ese día. Con 3 puntos es ruidoso: "
+                                           "sirve como señal complementaria, no como reemplazo del promedio.")
+            fig = m_panels(ts_gaps, prefijo + index_sel, f"{modo}: {index_sel}",
+                           sdcol=f"sd {index_sel}" if not (prefijo or ver_pts) else None, zero_line=bool(prefijo),
+                           pts_col=index_sel if ver_pts else None, worst_col=PEOR + index_sel if ver_peor else None,
+                           trend_q=_q_indice(prefijo, index_sel))
             chart(fig)
             st.caption(TREND_SHORT)
+    with tab_sev:
+        if tab_sev.open:
+            st.caption(
+                "Similitud relativa con roya con anclas S1: 0 % = hojas T en las primeras campañas, 100 % = promedio de "
+                "R1. Sirve para comparar hojas entre sí; ver la advertencia de circularidad en «Similitud relativa con roya en el tiempo» (pestaña Detalle por hoja)."
+            )
+            fig = m_panels(sev_gaps, "sev_S1", "Similitud relativa con roya (%)", scale=100, risk_lines=True,
+                           trend_q=_q(trends_sev["sev_S1"], "sev_S1"))
+            fig.update_yaxes(range=[-3, 105])
+            chart(fig)
+            st.caption(TREND_SHORT)
+    with tab_dist:
+        if tab_dist.open:
+            st.caption(
+                "Distancia RMS en z-scores (sin FSR) entre cada hoja y R1 **el mismo día**. Más baja = más "
+                "parecida a la hoja con roya. Una M que baja de forma sostenida y sale de la banda de las T es "
+                "la señal a revisar en campo. El pico del 10/08 en Pacamara es R1 atípica ese día, no las M."
+            )
+            if dist_gaps.empty:
+                st.info("No hay datos de distancia.")
+            else:
+                fig = m_panels(dist_gaps, "distancia", "Distancia a R1 (z RMS)", show_rust=False,
+                               trend_q=_q(trends_dist, "distancia"))
+                fig.update_yaxes(rangemode="tozero")
+                chart(fig)
+                st.caption(TREND_SHORT)
     with tab_all:
-        fig = make_subplots(rows=len(DIST_INDICES), cols=len(SUSCEPTIBLES), shared_xaxes=True, shared_yaxes=True,
-                            subplot_titles=[f"{sp} · {idx}" for idx in DIST_INDICES for sp in SUSCEPTIBLES],
-                            vertical_spacing=0.035, horizontal_spacing=0.04)
-        for i, idx in enumerate(DIST_INDICES, start=1):
-            m_panels(ts_gaps, prefijo + idx, idx, zero_line=bool(prefijo), rows=len(DIST_INDICES), row=i, fig=fig,
-                     trend_q=_q_indice(prefijo, idx))
-        style_time_axis(fig, 1900)
-        fig.update_xaxes(title_text=None)
-        for ann in fig.layout.annotations:
-            ann.font.size = 11
-        chart(fig)
-        st.caption(TREND_SHORT)
+        if tab_all.open:
+            fig = make_subplots(rows=len(DIST_INDICES), cols=len(SUSCEPTIBLES), shared_xaxes=True, shared_yaxes=True,
+                                subplot_titles=[f"{sp} · {idx}" for idx in DIST_INDICES for sp in SUSCEPTIBLES],
+                                vertical_spacing=0.035, horizontal_spacing=0.04)
+            for i, idx in enumerate(DIST_INDICES, start=1):
+                m_panels(ts_gaps, prefijo + idx, idx, zero_line=bool(prefijo), rows=len(DIST_INDICES), row=i, fig=fig,
+                         trend_q=_q_indice(prefijo, idx))
+            style_time_axis(fig, 1900)
+            fig.update_xaxes(title_text=None)
+            for ann in fig.layout.annotations:
+                ann.font.size = 11
+            chart(fig)
+            st.caption(TREND_SHORT)
 
     section("¿El cambio de las maduras es propio de la variedad susceptible?",
             "Cada tendencia de una hoja madura de Bourbon o Pacamara se contrasta con las hojas maduras de los controles "
@@ -403,7 +438,7 @@ with tab_mad:
         "simple es la maduración de la hoja o la estación, no la roya. Sin FSR (idéntico a NDVI)."
     )
 
-with tab_edad:
+def _tab_edad():
     section("¿Qué cambia con el tiempo? Envejecimiento frente a roya")
     st.caption(
         "Tendencia de **cada longitud de onda** (pendiente de Theil-Sen, en puntos de reflectancia por "
@@ -424,104 +459,108 @@ with tab_edad:
     unidad = "% de la meseta NIR por semana" if norm_nir else "pp de reflectancia por semana"
 
     tab_firma, tab_mapa, tab_idx_cambio = st.tabs(
-        ["Firma espectral por grupo", "Cada hoja (mapa de calor)", "¿Qué índices cambian?"]
+        ["Firma espectral por grupo", "Cada hoja (mapa de calor)", "¿Qué índices cambian?"],
+        key="tabs_edad", on_change="rerun",
     )
     with tab_firma:
-        fig = go.Figure()
-        etiquetas = []
-        for nombre, corto, color, dash, sel in GRUPOS_ESP:
-            g = spec_tr[sel(spec_tr)]
-            if g.empty:
-                continue
-            n_h = g["leaf_id"].nunique()
-            if ver_cada_hoja:
-                for lid, gl in g.groupby("leaf_id"):
-                    fig.add_trace(go.Scatter(
-                        x=gl["wavelength"], y=gl["pendiente"], mode="lines", showlegend=False, legendgroup=nombre,
-                        line=dict(color=_rgba(color, 0.3), width=1),
-                        hovertemplate=f"{lid.replace('|', ' ')}<br>%{{x:.0f}} nm · %{{y:+.2f}}<extra></extra>",
-                    ))
-            q = g.groupby("wavelength")["pendiente"]
-            med = q.median()
-            if n_h >= 3:
-                fig.add_trace(go.Scatter(x=med.index, y=q.quantile(0.75).to_numpy(), mode="lines", line=dict(width=0),
-                                         showlegend=False, legendgroup=nombre, hoverinfo="skip"))
-                fig.add_trace(go.Scatter(x=med.index, y=q.quantile(0.25).to_numpy(), mode="lines", line=dict(width=0),
-                                         fill="tonexty", fillcolor=_rgba(color, 0.15), showlegend=False,
-                                         legendgroup=nombre, hoverinfo="skip"))
-            fig.add_trace(go.Scatter(
-                x=med.index, y=med.to_numpy(), mode="lines", name=f"{nombre} (n = {n_h} hojas)", legendgroup=nombre,
-                line=dict(color=color, width=2.5, dash=dash),
-                hovertemplate=f"{corto}<br>%{{x:.0f}} nm · %{{y:+.2f}} {unidad}<extra></extra>",
-            ))
-            etiquetas.append([med.index[-1], float(med.iloc[-1]), corto])
-        if etiquetas:
-            vals = spec_tr["pendiente"].dropna()
-            gap = 0.05 * ((vals.quantile(0.95) - vals.quantile(0.05)) or 1.0)
-            etiquetas.sort(key=lambda e: e[1])
-            for i in range(1, len(etiquetas)):
-                etiquetas[i][1] = max(etiquetas[i][1], etiquetas[i - 1][1] + gap)
-            for x, y, texto in etiquetas:
-                fig.add_annotation(x=x, y=y, text=texto, showarrow=False, xanchor="left", xshift=6,
-                                   font=dict(size=11, color=TEXT_MUTED))
-        add_vlines(fig, INDEX_WAVELENGTHS, "rgba(60,60,55,0.16)", dash="dot")
-        fig.add_hline(y=0, line_width=1, line_color="rgba(40,40,35,0.45)")
-        fig.update_layout(height=480, margin=dict(t=30, b=10, r=70), hovermode="x unified",
-                          legend=dict(orientation="h", yanchor="bottom", y=1.02, x=0, font=dict(size=11)),
-                          xaxis_title="Longitud de onda (nm)", yaxis_title=f"Tendencia ({unidad})")
-        fig.update_xaxes(gridcolor=GRID)
-        fig.update_yaxes(gridcolor=GRID, zeroline=False)
-        chart(fig)
+        if tab_firma.open:
+            fig = go.Figure()
+            etiquetas = []
+            for nombre, corto, color, dash, sel in GRUPOS_ESP:
+                g = spec_tr[sel(spec_tr)]
+                if g.empty:
+                    continue
+                n_h = g["leaf_id"].nunique()
+                if ver_cada_hoja:
+                    for lid, gl in g.groupby("leaf_id"):
+                        fig.add_trace(go.Scatter(
+                            x=gl["wavelength"], y=gl["pendiente"], mode="lines", showlegend=False, legendgroup=nombre,
+                            line=dict(color=_rgba(color, 0.3), width=1),
+                            hovertemplate=f"{lid.replace('|', ' ')}<br>%{{x:.0f}} nm · %{{y:+.2f}}<extra></extra>",
+                        ))
+                q = g.groupby("wavelength")["pendiente"]
+                med = q.median()
+                if n_h >= 3:
+                    fig.add_trace(go.Scatter(x=med.index, y=q.quantile(0.75).to_numpy(), mode="lines", line=dict(width=0),
+                                             showlegend=False, legendgroup=nombre, hoverinfo="skip"))
+                    fig.add_trace(go.Scatter(x=med.index, y=q.quantile(0.25).to_numpy(), mode="lines", line=dict(width=0),
+                                             fill="tonexty", fillcolor=_rgba(color, 0.15), showlegend=False,
+                                             legendgroup=nombre, hoverinfo="skip"))
+                fig.add_trace(go.Scatter(
+                    x=med.index, y=med.to_numpy(), mode="lines", name=f"{nombre} (n = {n_h} hojas)", legendgroup=nombre,
+                    line=dict(color=color, width=2.5, dash=dash),
+                    hovertemplate=f"{corto}<br>%{{x:.0f}} nm · %{{y:+.2f}} {unidad}<extra></extra>",
+                ))
+                etiquetas.append([med.index[-1], float(med.iloc[-1]), corto])
+            if etiquetas:
+                vals = spec_tr["pendiente"].dropna()
+                gap = 0.05 * ((vals.quantile(0.95) - vals.quantile(0.05)) or 1.0)
+                etiquetas.sort(key=lambda e: e[1])
+                for i in range(1, len(etiquetas)):
+                    etiquetas[i][1] = max(etiquetas[i][1], etiquetas[i - 1][1] + gap)
+                for x, y, texto in etiquetas:
+                    fig.add_annotation(x=x, y=y, text=texto, showarrow=False, xanchor="left", xshift=6,
+                                       font=dict(size=11, color=TEXT_MUTED))
+            add_vlines(fig, INDEX_WAVELENGTHS, "rgba(60,60,55,0.16)", dash="dot")
+            fig.add_hline(y=0, line_width=1, line_color="rgba(40,40,35,0.45)")
+            fig.update_layout(height=480, margin=dict(t=30, b=10, r=70), hovermode="x unified",
+                              legend=dict(orientation="h", yanchor="bottom", y=1.02, x=0, font=dict(size=11)),
+                              xaxis_title="Longitud de onda (nm)", yaxis_title=f"Tendencia ({unidad})")
+            fig.update_xaxes(gridcolor=GRID)
+            fig.update_yaxes(gridcolor=GRID, zeroline=False)
+            chart(fig)
 
-        st.markdown("**Resumen por región del espectro**")
-        st.dataframe(region_table(spec_tr, GRUPOS_ESP, REGIONES), width="stretch")
-        st.caption(
-            "Cada celda: mediana de la pendiente de las hojas del grupo en esa región, y cuántas hojas "
-            "suben de cuántas. Es descriptivo: por región y grupo hay pocas hojas (R1 son 2), así que no "
-            "se reporta un p-valor. La coincidencia de signo entre hojas es lo que da solidez."
-        )
+            st.markdown("**Resumen por región del espectro**")
+            st.dataframe(region_table(spec_tr, GRUPOS_ESP, REGIONES), width="stretch")
+            st.caption(
+                "Cada celda: mediana de la pendiente de las hojas del grupo en esa región, y cuántas hojas "
+                "suben de cuántas. Es descriptivo: por región y grupo hay pocas hojas (R1 son 2), así que no "
+                "se reporta un p-valor. La coincidencia de signo entre hojas es lo que da solidez."
+            )
 
     with tab_mapa:
-        orden = []
-        for _, _, _, _, sel in GRUPOS_ESP:
-            ids = spec_tr[sel(spec_tr)][["leaf_id", "species", "leaf"]].drop_duplicates()
-            ids = ids.assign(_o=ids["species"].map({s: i for i, s in enumerate(SPECIES_ORDER)})).sort_values(["_o", "leaf"])
-            orden += [i for i in ids["leaf_id"] if i not in orden]
-        mat = spec_tr.pivot_table(index="leaf_id", columns="wavelength", values="pendiente").reindex(orden)
-        zmax = float(np.nanpercentile(np.abs(mat.to_numpy()), 98)) or 1.0
-        fig = go.Figure(go.Heatmap(
-            z=mat.to_numpy(), x=mat.columns.to_numpy(), y=[i.replace("|", " · ") for i in mat.index],
-            zmin=-zmax, zmax=zmax, zmid=0,
-            colorscale=[[0, "#2F6DB5"], [0.5, "#EFEFEC"], [1, "#C8402F"]],
-            colorbar=dict(title=dict(text="por semana", side="top"), thickness=14),
-            hovertemplate="%{y}<br>%{x:.0f} nm · %{z:+.2f}<extra></extra>",
-        ))
-        fig.update_layout(height=max(360, 26 * len(mat) + 100), margin=dict(t=20, b=10),
-                          xaxis_title="Longitud de onda (nm)",
-                          yaxis=dict(autorange="reversed", tickfont=dict(size=11)))
-        chart(fig)
-        st.caption(
-            "Una fila por hoja con al menos "
-            f"{TEMPORAL_MIN_FECHAS_TENDENCIA} fechas, ordenadas por grupo: tiernas, maduras susceptibles, "
-            "maduras de control y hojas con roya. Naranja = esa longitud de onda sube con las semanas; azul = "
-            f"baja; gris = sin cambio. Unidad: {unidad}. La escala se recorta al percentil 98 para que un "
-            "extremo no apague el resto."
-        )
+        if tab_mapa.open:
+            orden = []
+            for _, _, _, _, sel in GRUPOS_ESP:
+                ids = spec_tr[sel(spec_tr)][["leaf_id", "species", "leaf"]].drop_duplicates()
+                ids = ids.assign(_o=ids["species"].map({s: i for i, s in enumerate(SPECIES_ORDER)})).sort_values(["_o", "leaf"])
+                orden += [i for i in ids["leaf_id"] if i not in orden]
+            mat = spec_tr.pivot_table(index="leaf_id", columns="wavelength", values="pendiente").reindex(orden)
+            zmax = float(np.nanpercentile(np.abs(mat.to_numpy()), 98)) or 1.0
+            fig = go.Figure(go.Heatmap(
+                z=mat.to_numpy(), x=mat.columns.to_numpy(), y=[i.replace("|", " · ") for i in mat.index],
+                zmin=-zmax, zmax=zmax, zmid=0,
+                colorscale=[[0, "#2F6DB5"], [0.5, "#EFEFEC"], [1, "#C8402F"]],
+                colorbar=dict(title=dict(text="por semana", side="top"), thickness=14),
+                hovertemplate="%{y}<br>%{x:.0f} nm · %{z:+.2f}<extra></extra>",
+            ))
+            fig.update_layout(height=max(360, 26 * len(mat) + 100), margin=dict(t=20, b=10),
+                              xaxis_title="Longitud de onda (nm)",
+                              yaxis=dict(autorange="reversed", tickfont=dict(size=11)))
+            chart(fig)
+            st.caption(
+                "Una fila por hoja con al menos "
+                f"{TEMPORAL_MIN_FECHAS_TENDENCIA} fechas, ordenadas por grupo: tiernas, maduras susceptibles, "
+                "maduras de control y hojas con roya. Naranja = esa longitud de onda sube con las semanas; azul = "
+                f"baja; gris = sin cambio. Unidad: {unidad}. La escala se recorta al percentil 98 para que un "
+                "extremo no apague el resto."
+            )
 
     with tab_idx_cambio:
-        fam_idx = st.radio("Tendencia calculada sobre", list(FAMILIAS), horizontal=True, help=FAM_AYUDA, key="fam_idx")
-        resumen_idx = index_change_summary(trends_fam[fam_idx], species_with_rust)
-        st.dataframe(resumen_idx, hide_index=True, width="stretch",
-                     column_config={c: st.column_config.NumberColumn(c, format="%.5f")
-                                    for c in resumen_idx.columns if "mediana" in c})
-        st.caption(
-            "Por índice y grupo: tendencias significativas (FDR 5 %) que suben / bajan, de cuántas hojas "
-            "evaluadas, y la mediana de la pendiente por semana. La lectura sigue reglas fijas: "
-            "**propio de la roya** si R1 cambia y ni las T ni las M de control cambian en el mismo sentido; "
-            "**envejecimiento de hoja madura** si M susceptibles y M de control cambian igual; **candidata** si "
-            "una M susceptible cambia y ningún control lo hace; **maduración** si cambia alguna T. "
-            "En la familia Δ*, las hojas T son la referencia y su tendencia es ~0 por construcción."
-        )
+        if tab_idx_cambio.open:
+            fam_idx = st.radio("Tendencia calculada sobre", list(FAMILIAS), horizontal=True, help=FAM_AYUDA, key="fam_idx")
+            resumen_idx = index_change_summary(trends_fam[fam_idx], species_with_rust)
+            st.dataframe(resumen_idx, hide_index=True, width="stretch",
+                         column_config={c: st.column_config.NumberColumn(c, format="%.5f")
+                                        for c in resumen_idx.columns if "mediana" in c})
+            st.caption(
+                "Por índice y grupo: tendencias significativas (FDR 5 %) que suben / bajan, de cuántas hojas "
+                "evaluadas, y la mediana de la pendiente por semana. La lectura sigue reglas fijas: "
+                "**propio de la roya** si R1 cambia y ni las T ni las M de control cambian en el mismo sentido; "
+                "**envejecimiento de hoja madura** si M susceptibles y M de control cambian igual; **candidata** si "
+                "una M susceptible cambia y ningún control lo hace; **maduración** si cambia alguna T. "
+                "En la familia Δ*, las hojas T son la referencia y su tendencia es ~0 por construcción."
+            )
 
     # ---------- 3. roya frente a envejecimiento ----------
     section("La misma hoja semana a semana: R1 frente a una hoja tierna")
@@ -609,7 +648,7 @@ with tab_edad:
     if lectura_s3:
         st.caption("Tendencia (Theil-Sen, sin normalizar): " + " · ".join(lectura_s3) + ".")
 
-with tab_dat:
+def _tab_dat():
     section("Ficha de datos")
     st.caption(
         "Puntos válidos por hoja y fecha. **—** = la variedad tuvo campaña pero la hoja no se midió "
@@ -678,40 +717,43 @@ with tab_dat:
             icon="⬇️",
         )
 
-with tab_det:
+def _tab_det():
     section(f"Detalle de {_species_label(species)}", "Usa la variedad y las hojas elegidas en la barra lateral.")
 
     if sp_ts.empty:
         st.info("No hay datos para las hojas seleccionadas.")
         st.stop()
 
+    index_sel, modo, prefijo, explicacion = _seleccion_indice()
     section("Índices en el tiempo")
     st.caption(f"Índice y modo elegidos en la pestaña «Hojas maduras»: **{index_sel}**, **{modo}**. {explicacion}")
     if prefijo == DELTA_STAR and species == "Canefora":
         st.info("Canefora tiene una sola hoja T en la mayoría de las fechas: su Δ* es 0 por definición.")
 
-    tab_uno, tab_todos = st.tabs(["Un índice", "Los 7 índices"])
+    tab_uno, tab_todos = st.tabs(["Un índice", "Los 7 índices"], key="tabs_det", on_change="rerun")
     with tab_uno:
-        fig = go.Figure()
-        add_leaf_lines(fig, sp_ts, prefijo + index_sel, sdcol=f"sd {index_sel}", trend_q=_q_indice(prefijo, index_sel))
-        if prefijo:
-            fig.add_hline(y=0, line_width=1, line_color="rgba(40,40,35,0.35)")
-        style_time_axis(fig, 460, yaxis_title=f"{modo}: {index_sel}")
-        chart(fig)
-        st.caption(TREND_SHORT)
+        if tab_uno.open:
+            fig = go.Figure()
+            add_leaf_lines(fig, sp_ts, prefijo + index_sel, sdcol=f"sd {index_sel}", trend_q=_q_indice(prefijo, index_sel))
+            if prefijo:
+                fig.add_hline(y=0, line_width=1, line_color="rgba(40,40,35,0.35)")
+            style_time_axis(fig, 460, yaxis_title=f"{modo}: {index_sel}")
+            chart(fig)
+            st.caption(TREND_SHORT)
 
     with tab_todos:
-        fig = make_subplots(rows=4, cols=2, shared_xaxes=True, subplot_titles=DIST_INDICES,
-                            vertical_spacing=0.07, horizontal_spacing=0.07)
-        for i, idx in enumerate(DIST_INDICES):
-            add_leaf_lines(fig, sp_ts, prefijo + idx, row=i // 2 + 1, col=i % 2 + 1,
-                           showlegend=(i == 0), direct_labels=False, trend_q=_q_indice(prefijo, idx))
-        if prefijo:
-            add_hlines_all(fig, 0)
-        style_time_axis(fig, 1000)
-        fig.update_xaxes(title_text=None)
-        chart(fig)
-        st.caption(TREND_SHORT + " En esta vista solo se marca la significancia; el nombre de cada hoja está en la leyenda.")
+        if tab_todos.open:
+            fig = make_subplots(rows=4, cols=2, shared_xaxes=True, subplot_titles=DIST_INDICES,
+                                vertical_spacing=0.07, horizontal_spacing=0.07)
+            for i, idx in enumerate(DIST_INDICES):
+                add_leaf_lines(fig, sp_ts, prefijo + idx, row=i // 2 + 1, col=i % 2 + 1,
+                               showlegend=(i == 0), direct_labels=False, trend_q=_q_indice(prefijo, idx))
+            if prefijo:
+                add_hlines_all(fig, 0)
+            style_time_axis(fig, 1000)
+            fig.update_xaxes(title_text=None)
+            chart(fig)
+            st.caption(TREND_SHORT + " En esta vista solo se marca la significancia; el nombre de cada hoja está en la leyenda.")
 
     # ---------- 4. tendencias ----------
     section("Tendencias por hoja")
@@ -1053,3 +1095,11 @@ with tab_det:
         chart(fig)
     else:
         st.info("Elegir al menos una hoja para la animación.")
+
+
+# Solo se dibuja la pestaña abierta.
+for _tab, _dibujar in [(tab_res, _tab_res), (tab_mad, _tab_mad), (tab_edad, _tab_edad),
+                       (tab_det, _tab_det), (tab_dat, _tab_dat)]:
+    if _tab.open:
+        with _tab:
+            _dibujar()

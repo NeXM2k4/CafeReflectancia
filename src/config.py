@@ -224,3 +224,24 @@ TEMPORAL_GRID_POINTS = 300
 INDEX_WAVELENGTHS = sorted(set(
     WL_NDVI + WL_PRI + WL_PSRI + WL_RCI + WL_EDI + WL_NDRE + WL_MNDVI705
 ))
+
+# --- Analisis espectral por hoja (docs/plan_analisis_espectral.md) ---
+SPECTRAL_WL = (440, 900)  # por debajo de 440 hay reflectancia negativa; por encima de 900 el detector es ruidoso
+SPECTRAL_DERIV_WINDOW = 7  # puntos de la grilla (~13 nm) del filtro de Savitzky-Golay
+SPECTRAL_DERIV_POLY = 3
+DERIV_REGIONS = {"Azul-verde (440–600 nm)": (440, 600), "Borde rojo (650–780 nm)": (650, 780)}
+# Franjas de referencia en las figuras: (nombre, desde, hasta, color)
+SHADE_BANDS = [
+    ("Azul / carotenoides", 440, 520, "rgba(57,135,229,0.14)"),
+    ("Absorción clorofila", 640, 700, "rgba(25,158,112,0.14)"),
+    ("Borde rojo", 700, 760, "rgba(217,89,38,0.14)"),
+]
+# Regiones para el cambio medio vs linea base (Delta por region)
+DELTA_REGIONS = {
+    "Azul 440–520": (440, 520),
+    "Verde 520–600": (520, 600),
+    "Rojo 640–700": (640, 700),
+    "Borde rojo 700–760": (700, 760),
+    "NIR 760–900": (760, 900),
+}
+NDVI_SIN_HOJA = 0.05  # NDVI de archivo por debajo: espectro plano sin firma de hoja (p. ej. referencia blanca)

@@ -1,0 +1,19 @@
+estos son los nuevos requerimientos:
+
+Hay información  que los indices no pueden proporcionar a simple vista, para solucionar esto se hara lo siguiente:
+1. Analizar la primera y segunda derivada de dos partes fundamentales: primero en la region donde predomina la clorofila y carotenoides y segunda la zona del cambio del red edge, contra la longitud de onda, normalizada y no normalizada.
+2. sigma de spearman vs tiempo con la longitud de onda para ver como cambia la reflectancia de la hoja a lo largo del tiempo, normalizada y no normalizada.
+3. Descomposicion PCA, Delta reflectancia vs campañas iniciales contra longitud de onda, normalizada y no normalizada.
+4. Otros analisis espectrales que creas conveniente poner que los indices espectrales no pueden dar
+
+Hacerlo por cada hoja de cada variedad porque no tienen sentido promediar las hojas de la misma variedad porque es un seguimiento temporal a campo abierto.
+
+en esta misma carpeta hal algunos ejemplos de como debería de quedar (3 imágenes)
+
+lo que se quiere también es que cada item se vaya colocando en la parte de abajo de la evolución temporal en el menú izquierdo y agregar análisis estadístico
+
+eso es lo principal
+
+lo secundario es:
+
+quiza tambien, para que sea pesado la carga de plots porque van a salir varios crea un drive donde cree un excel y una carpeta de fotos y cada que se vaya actualizando pues se reutilice ese mismo drive, donde se guarde todo el análisis pq así le sirve mas a la persona, pero no sé que tanto nos costaría hacer eso, por eso dame tu opinión sobre cual es la mejor forma de implementarlo.

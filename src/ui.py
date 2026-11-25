@@ -59,7 +59,11 @@ pio.templates["reflec"] = go.layout.Template(
         coloraxis=dict(colorbar=dict(outlinewidth=0, thickness=10, tickfont=dict(size=11, color=INK_MUTED))),
     )
 )
-pio.templates.default = "plotly_white+reflec"
+# Se combina una sola vez y se registra ya combinada: con la cadena "plotly_white+reflec" como
+# predeterminada, Plotly vuelve a combinar y validar ambas plantillas en cada `go.Figure` (~32 ms
+# por figura; ~0,9 s por recarga de *Evolucion temporal*). El resultado es identico.
+pio.templates["reflec_full"] = pio.templates.merge_templates("plotly_white", "reflec")
+pio.templates.default = "reflec_full"
 
 PLOT_CONFIG = {
     "displaylogo": False,
@@ -339,6 +343,19 @@ def campaign_range(df: pd.DataFrame, key: str, label: str = "Campañas") -> list
     sel = ids[i:j + 1]
     st.caption(f"{len(sel)} de {len(ids)} campañas · {etiquetas[desde]} a {etiquetas[hasta]}")
     return sel
+
+
+def keep_widget_state(keys=(), prefixes=()):
+    """Conserva el valor de controles que no se dibujan en esta recarga (pestañas perezosas).
+
+    Streamlit borra el estado de un control que no se dibuja en una recarga; con pestañas que solo
+    dibujan la abierta, eso reiniciaba los controles de las demás al cambiar de pestaña. Reasignar
+    la clave al principio de la página la conserva (patrón documentado por Streamlit). Llamar
+    antes de crear cualquier control.
+    """
+    for k in list(st.session_state.keys()):
+        if k in keys or any(k.startswith(p) for p in prefixes):
+            st.session_state[k] = st.session_state[k]
 
 
 def sidebar_footer(df: pd.DataFrame):

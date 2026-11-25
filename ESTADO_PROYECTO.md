@@ -1,6 +1,6 @@
 # Estado del proyecto — vigente
 
-Última actualización: 2026-11-16 (fondo blanco, tendencias y arranque rápido: `docs/plan_fondo_blanco_tendencias_rendimiento.md`).
+Última actualización: 2026-11-24 (análisis espectral por hoja: `docs/plan_analisis_espectral.md`).
 Historia y decisiones antiguas: `docs/bitacora.md`. Método: `METODOLOGIA.md`. Cómo desplegar: `DEPLOY.md`.
 
 ## Qué es
@@ -26,6 +26,36 @@ de nombres (`docs/bitacora.md` §4).
 Todo el plan `plan_mejora_app.md` (F0–F6) y la presentación de `plan_presentacion.md`
 (navegación agrupada, sistema visual único, estadística por pares). Detalle en `PROGRESO_MEJORA_APP.md`.
 
+## 2026-11-24: análisis espectral por hoja (`docs/plan_analisis_espectral.md`)
+Pedido en `PROMPT-noviembre24/prompt.txt`. Cuatro vistas nuevas bajo *Evolución temporal*: *Derivadas
+espectrales*, *Correlación con el tiempo*, *Cambio espectral y PCA* y *Rasgos espectrales*. Una hoja a la
+vez, cruda y normalizada, con estadística (Spearman + FDR por λ; Theil–Sen + Mann–Kendall + FDR para Δ por
+región, puntajes de PCA y rasgos). Método en `METODOLOGIA.md` §10. 45 pruebas pasan; recarga ≤ 0,3 s por
+página con caché (primera visita ~5 s). Las vistas existentes no cambian sus números.
+Primer hallazgo: el patrón de Bourbon M1 en ρ vs tiempo (visible ↑, NIR normalizado ↓) aparece también en
+Canefora M1 y Cuscatleco M1/M2 (controles sin roya): es compatible con envejecimiento.
+Pendiente de decisión: informe Excel + figuras y su sincronización con Drive (opinión en el plan, §9).
+El paper ya se entregó; `plan_mejora_paper.md` y `PAPER/` son historia.
+
+Cómo se hizo: plan en `docs/plan_analisis_espectral.md` → F1 núcleo (`src/spectral.py`, `spectral_page.py`,
+`spectral_plots.py`, `tests/test_spectral.py`, 12 pruebas) → F2 (`plots_forma.py`, `views/derivadas.py`,
+`views/correlacion_tiempo.py`) y F3 (`plots_cambio.py`, `views/cambio_pca.py`, `views/rasgos.py`) en
+paralelo → integración (`app.py`, `tests/test_smoke_pages.py`), revisión visual y ajustes (colores de las
+franjas, espacio entre títulos, leyenda de regiones en la PCA). Se mostró al usuario en local el 2026-11-24.
+
+Diferencias con las imágenes de ejemplo (a propósito): la primera fecha va arriba en los mapas de Δ; la
+línea base es de 2 fechas por defecto (el ejemplo usa 1; hay selector); los espectros sin firma de hoja
+(NDVI < 0,05) se excluyen por defecto en estas 4 vistas, por eso desaparece la franja del 24/08 de Bourbon M1.
+
+### Siguiente sesión
+1. Recoger la opinión del usuario sobre las 4 vistas (las vio en el navegador; aún no dio comentarios).
+2. **Nada está commiteado.** El árbol tiene dos trabajos juntos: rendimiento P1/P2 (2026-11-19) y este
+   análisis espectral. Preguntar si van en uno o dos commits (sin `Co-Authored-By`).
+3. Decidir el informe Excel + figuras / Drive (plan §9; recomendación: script `scripts/export_report.py`
+   y después una GitHub Action que sincronice a Drive).
+4. Sigue pendiente lo anterior: medir el rendimiento en Streamlit Cloud y reescribir `plan_subida_datos.md`.
+5. `PROMPT-noviembre24/` (pedido + imágenes) no está versionado: decidir si se guarda en `docs/`.
+
 ## 2026-11-16: fondo blanco, tendencias y arranque rápido
 - Tema claro (fondo blanco) en toda la app; paleta revalidada sobre blanco (Pacamara pasa a `#B97A00`).
 - Evolución temporal: puntos sin unir, tendencia LOWESS por hoja y significancia (Mann–Kendall + FDR)
@@ -37,7 +67,18 @@ Todo el plan `plan_mejora_app.md` (F0–F6) y la presentación de `plan_presenta
   archivos nuevos aparecen solos en menos de un minuto.
 - Subido a `main` en `f1d26d4` (incluye `data_cache/`, al día con `data/`: 3471 archivos, 0 por recalcular).
 
-## Pendiente para la próxima sesión: rendimiento en la nube
+## Rendimiento (2026-11-19): P1 y P2 hechos, falta medir en la nube
+Detalle y números en `docs/plan_rendimiento.md` § 6. En *Evolución temporal* cada clic pasó de
+~3,9 s a 0,6–1,3 s: plantilla de Plotly combinada una vez, `leaf_trends` en caché y pestañas que
+solo dibujan la abierta. Costo: cambiar de pestaña ya no es instantáneo (~0,6–1,3 s). La app ya no
+lee los 212 MB de `.txt` al arrancar (verifica `data_cache/` por ruta + tamaño; si se reemplaza un
+`.txt`, correr `build_cache.py`, ver `README.md`). Mismos números: 29 pruebas pasan.
+**Siguiente:** medir en Streamlit Cloud (hace falta la URL) y decidir P3 con esos números.
+
+Aparte, en pausa: `plan_subida_datos.md` (subir campañas desde la app con un zip). El usuario no
+quedó convencido; hay que reescribirlo antes de implementar nada.
+
+### Lista anterior (2026-11-16)
 El equipo reporta que la app en Streamlit Cloud sigue tardando en arrancar. **Primero medir**, después
 optimizar:
 

@@ -118,12 +118,19 @@ def _write_shard(store_dir: Path, nombre: str, tabla: pd.DataFrame) -> None:
 
 
 def build_store(data_dir: Path = DATA_DIR, store_dir: Path = STORE_DIR, write: bool = True,
-                progress=None) -> tuple[pd.DataFrame, dict]:
+                progress=None, verify_content: bool = True) -> tuple[pd.DataFrame, dict]:
     """Tabla completa (una fila por .txt de `data_dir`), reutilizando lo que ya esta en el almacen.
 
     Devuelve `(tabla, resumen)`; `tabla` esta indexada por la ruta absoluta del archivo (la misma
     cadena que guarda `parser.scan_dataset` en la columna `path`). `resumen` cuenta archivos
     reutilizados, calculados y quitados.
+
+    `verify_content=True` (script `build_cache.py` y pruebas) lee cada archivo y compara su sha1.
+    `verify_content=False` (la app al arrancar) da por vigente una fila con la misma ruta y el mismo
+    tamaño sin leer el archivo: evita leer ~200 MB en cada arranque en frio de la nube. Riesgo
+    aceptado y documentado (docs/plan_rendimiento.md, P2): un .txt reemplazado por otro del mismo
+    tamaño sin regenerar el almacen no se detecta en la app; si lo detecta
+    `tests/test_store.py::test_almacen_versionado_esta_al_dia`.
     """
     metodo = method_fingerprint()
     previo = _read_store(store_dir, metodo).set_index("rel_path", drop=False)
@@ -131,8 +138,15 @@ def build_store(data_dir: Path = DATA_DIR, store_dir: Path = STORE_DIR, write: b
 
     claves, nuevas = [], []
     for k, path in enumerate(archivos):
-        contenido = path.read_bytes()
         rel = _rel(path, data_dir)
+        if not verify_content and rel in previo.index:
+            size = path.stat().st_size
+            if int(previo.at[rel, "size"]) == size:
+                claves.append((str(path), rel, size, previo.at[rel, "sha1"]))
+                if progress is not None:
+                    progress(k + 1, len(archivos))
+                continue
+        contenido = path.read_bytes()
         sha = hashlib.sha1(contenido).hexdigest()
         claves.append((str(path), rel, len(contenido), sha))
         vigente = rel in previo.index and previo.at[rel, "sha1"] == sha and int(previo.at[rel, "size"]) == len(contenido)
@@ -201,8 +215,9 @@ def _shards_with_other_methods(store_dir: Path, metodo: str) -> set[str]:
 @st.cache_data(show_spinner="Cargando espectros procesados…", max_entries=2)
 def processed_store(fingerprint: str) -> pd.DataFrame:
     """`build_store()` con cache de Streamlit; `fingerprint` (`parser.data_fingerprint()`) es la
-    clave del cache: cambia, y el almacen se completa, cuando llegan archivos nuevos."""
-    tabla, _ = build_store()
+    clave del cache: cambia, y el almacen se completa, cuando llegan archivos nuevos.
+    Verifica el almacen por ruta + tamaño, sin leer los .txt (ver `build_store`)."""
+    tabla, _ = build_store(verify_content=False)
     return tabla
 
 

@@ -196,3 +196,30 @@ resumida por grupo con la mediana entre hojas. Opcionalmente se normaliza por la
 4. Un cambio en hojas M o T puede ser envejecimiento o estación, no roya (para eso existen Δ\* y los
    controles).
 5. La similitud no es severidad de planta ni de campo.
+
+## 10. Análisis espectral por hoja (`src/spectral.py`; vistas *Derivadas espectrales*, *Correlación con el tiempo*, *Cambio espectral y PCA*, *Rasgos espectrales*)
+
+Desde 2026-11-24. Plan y justificación: `docs/plan_analisis_espectral.md`. Trabajan con el **espectro
+completo** de **una hoja física a la vez** (nunca se promedian hojas distintas), sobre el espectro medio
+hoja-fecha de §1 (`temporal.leaf_mean_spectra`, grilla ≈1,87 nm), recortado a **440–900 nm**.
+
+- **Espectros sin firma de hoja** (NDVI < 0,05 por archivo, `config.NDVI_SIN_HOJA`): se excluyen por
+  defecto en estas cuatro vistas, antes de promediar (interruptor para incluirlos). Las demás vistas no cambian.
+- **Normalizada («forma»):** R / media(R, 440–900 nm). Alternativa: R / media(R, 750–900 nm). Cada figura
+  se muestra cruda y normalizada lado a lado.
+- **Derivadas:** Savitzky–Golay sobre la grilla (ventana 7 puntos ≈ 13 nm, polinomio 3; 5 y 11 en «Avanzado»).
+  Regiones: azul-verde 440–600 nm y borde rojo 650–780 nm.
+- **Correlación con el tiempo:** ρ de Spearman entre R(λ) y los días, por λ; p bilateral y FDR de
+  Benjamini–Hochberg sobre las λ de esa hoja. Sin p con menos de 5 fechas.
+- **Δ vs línea base:** R(λ, t) − media de las primeras *n* fechas de la propia hoja (*n* = 2 por defecto;
+  1–3). Tendencia del Δ medio por región (azul, verde, rojo, borde rojo, NIR) con Theil–Sen + Mann–Kendall +
+  FDR (§7.2) sobre todas las hojas. Ruido de referencia = SD entre puntos en las fechas base.
+- **PCA por hoja:** fechas × λ, centrada y sin escalar (SVD); cada PC orientada para que su puntaje
+  crezca con el tiempo (ρ ≥ 0). PC1 de hojas distintas no es el mismo eje. «Espacio común»: una PCA de
+  todas las hojas-fecha normalizadas, con la trayectoria de cada hoja por separado.
+- **Rasgos:** REP (máximo de la derivada y método lineal de Guyot y Baret, 1988), D máx, doble pico del
+  borde rojo, posición y valor del pico verde, profundidad y área del pozo de clorofila (continuo lineal
+  540–760 nm), ángulo espectral (SAM) contra la línea base y contra R1 de su variedad el mismo día. Tendencias
+  como en §7.2 (familia «rasgos») y lectura por grupos como *¿Roya o edad?*.
+- Limitaciones: las de §6, §7 y §9. Las λ vecinas y las fechas sucesivas no son independientes; el FDR
+  controla la multiplicidad entre λ, no la autocorrelación temporal.

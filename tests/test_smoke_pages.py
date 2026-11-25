@@ -26,6 +26,10 @@ PAGES = [
     "views/variedades.py",
     "views/estado_actual.py",
     "views/evolucion.py",
+    "views/derivadas.py",
+    "views/correlacion_tiempo.py",
+    "views/cambio_pca.py",
+    "views/rasgos.py",
     "views/datos_calidad.py",
     "views/alerta.py",
 ]

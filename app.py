@@ -32,6 +32,10 @@ nav = st.navigation(
         "Seguimiento de hojas": [
             st.Page(V / "estado_actual.py", title="Estado actual", icon=":material/grid_view:"),
             st.Page(V / "evolucion.py", title="Evolución temporal", icon=":material/timeline:"),
+            st.Page(V / "derivadas.py", title="Derivadas espectrales", icon=":material/ssid_chart:"),
+            st.Page(V / "correlacion_tiempo.py", title="Correlación con el tiempo", icon=":material/trending_up:"),
+            st.Page(V / "cambio_pca.py", title="Cambio espectral y PCA", icon=":material/scatter_plot:"),
+            st.Page(V / "rasgos.py", title="Rasgos espectrales", icon=":material/insights:"),
         ],
         "Datos y operación": [
             st.Page(V / "datos_calidad.py", title="Datos y calidad", icon=":material/fact_check:"),

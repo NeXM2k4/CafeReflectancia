@@ -34,6 +34,10 @@ python -m pytest tests/
 | | **Comparación entre variedades** | Si las variedades difieren con el mismo tipo de hoja |
 | Seguimiento de hojas | **Estado actual** | Similitud con roya de cada hoja, fecha por fecha, y cómo se forma ese porcentaje |
 | | **Evolución temporal** | Si el cambio de una hoja madura es propio de la roya o envejecimiento |
+| | **Derivadas espectrales** | Cómo cambian la primera y segunda derivada (azul-verde y borde rojo) de cada hoja |
+| | **Correlación con el tiempo** | En qué longitudes de onda la reflectancia de cada hoja sube o baja con el tiempo (ρ de Spearman) |
+| | **Cambio espectral y PCA** | Cuánto cambió cada λ respecto de las primeras campañas y cuáles son las direcciones principales de cambio |
+| | **Rasgos espectrales** | Lo que los índices no dan: posición del borde rojo, pico verde, pozo de clorofila, ángulo espectral |
 | Datos y operación | **Datos y calidad** | Inventario y todo lo excluido o marcado, con el motivo |
 | | **Alerta de campo** | Revisar mediciones nuevas y enviar el aviso por Telegram (con vista previa) |
 
@@ -43,6 +47,9 @@ python -m pytest tests/
 2. `python scripts/build_cache.py`: procesa solo los archivos nuevos y actualiza `data_cache/`.
    Commitear `data/` y `data_cache/` juntos. Si se olvida, la app funciona igual: calcula lo que
    falta al arrancar (ese primer arranque tarda más).
+   **Si se corrige o reemplaza un `.txt` que ya estaba, correr `build_cache.py` sí o sí**: para
+   arrancar rápido, la app reconoce cada archivo por ruta y tamaño sin leerlo, así que un reemplazo
+   del mismo tamaño no lo notaría (la prueba `tests/test_store.py` sí lo detecta).
 3. Abrir la aplicación (si ya estaba abierta, ve los archivos nuevos en menos de un minuto, o al
    instante con «Volver a escanear data/» en *Datos y calidad*).
 4. Revisar *Datos y calidad*: que no aparezcan archivos sin reconocer ni marcas inesperadas.
@@ -65,6 +72,9 @@ src/
   stats_utils.py        estadística por pares (δ de Cliff, Mann–Whitney, Holm) y prueba global
   temporal.py           series por hoja, Δ/Δ*, tendencias, distancia a R1
   temporal_plots.py     gráficos de la evolución temporal
+  spectral.py           análisis espectral por hoja: derivadas, ρ vs tiempo, Δ, PCA, rasgos
+  spectral_page.py      barra lateral y datos comunes de las 4 vistas espectrales
+  spectral_plots.py, plots_forma.py, plots_cambio.py   gráficos de esas vistas
   viz_groups.py         gráficos compartidos de comparación entre grupos
   ui.py                 sistema visual: encabezados, notas, tablas, filtros, plantilla Plotly
   notifier.py, state.py alerta de Telegram y registro de novedades
